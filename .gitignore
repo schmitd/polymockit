@@ -1,0 +1,21 @@
+# dependencies
+node_modules
+
+# outputs
+dist
+coverage
+
+# env
+.env
+.env.*
+!.env.example
+
+# convex
+.convex
+convex/.tmp
+
+# turbo
+.turbo
+
+# logs
+*.log

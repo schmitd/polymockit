@@ -1,0 +1,19 @@
+{
+  "name": "@polymockit/effect-services",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "convex": "^1.32.0",
+    "effect": "^3.19.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
