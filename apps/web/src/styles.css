@@ -202,6 +202,11 @@ small {
   gap: 0.72rem;
 }
 
+.route-switch {
+  display: flex;
+  gap: 0.45rem;
+}
+
 .identity-chip {
   display: flex;
   align-items: center;
@@ -224,11 +229,29 @@ small {
 
 .layout-grid {
   display: grid;
-  grid-template-columns: 19rem minmax(0, 1fr) 24rem;
+  grid-template-columns: minmax(0, 1fr) 24rem;
   gap: 1rem;
   padding: 1rem 1.5rem 1.3rem;
   min-height: 0;
   overflow: hidden;
+}
+
+.route-shell {
+  padding: 1rem 1.5rem 1.3rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.league-admin-panel {
+  width: min(58rem, 100%);
+  margin: 0 auto;
+  align-content: start;
+}
+
+.league-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
 }
 
 .panel {
@@ -240,12 +263,10 @@ small {
   gap: 1rem;
 }
 
-.sidebar,
 .league-panel {
   align-content: start;
 }
 
-.sidebar section,
 .league-panel section {
   display: grid;
   gap: 0.62rem;
@@ -267,50 +288,35 @@ small {
   color: var(--muted);
 }
 
-.search-row {
-  display: grid;
-  gap: 0.36rem;
-}
-
-.slug-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.5rem;
-  align-items: end;
-}
-
-.feed-controls {
-  display: grid;
-  gap: 0.56rem;
-}
-
 .toggle-row {
   display: flex;
   gap: 0.5rem;
 }
 
-.tag-browser {
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: rgba(8, 16, 23, 0.58);
-  padding: 0.55rem;
+.market-controls-row {
   display: grid;
-  gap: 0.45rem;
+  grid-template-columns: auto minmax(13rem, 1fr) minmax(11rem, 0.8fr);
+  gap: 0.5rem;
+  align-items: center;
 }
 
-.tag-browser-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.56rem;
+.slug-inline,
+.tag-filter-inline {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .tag-list {
   display: flex;
-  flex-wrap: wrap;
   gap: 0.35rem;
-  max-height: 6.3rem;
   overflow: auto;
+}
+
+.tag-list.single-row {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  padding-bottom: 0.15rem;
 }
 
 .tag-chip {
@@ -342,12 +348,14 @@ small {
 }
 
 .market-grid {
-  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.2rem;
 }
 
 .markets-panel {
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
 }
 
 .market-history {
@@ -386,6 +394,18 @@ small {
 
 .history-frame {
   height: 10.25rem;
+}
+
+.side-history .history-frame {
+  height: 6.35rem;
+}
+
+.side-history .history-chart {
+  height: 6.35rem;
+}
+
+.side-history .history-stats {
+  font-size: 0.72rem;
 }
 
 .history-stats {
@@ -487,6 +507,10 @@ small {
     grid-template-columns: 1fr;
   }
 
+  .league-admin-grid {
+    grid-template-columns: 1fr;
+  }
+
   .market-grid {
     max-height: none;
   }
@@ -524,6 +548,10 @@ small {
     gap: 0.75rem;
   }
 
+  .route-shell {
+    padding: 0.75rem;
+  }
+
   .banner {
     margin-inline: 0.75rem;
   }
@@ -532,7 +560,17 @@ small {
     min-width: 0;
   }
 
-  .slug-row {
+  .topbar-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .market-controls-row {
+    grid-template-columns: 1fr;
+  }
+
+  .slug-inline,
+  .tag-filter-inline {
     grid-template-columns: 1fr;
   }
 }

@@ -40,11 +40,11 @@ const defaultCreateLeague = {
   name: "",
   bankroll: "10000",
 };
-const MAX_SIDEBAR_LEAGUES = 6;
-const MAX_MARKET_ROWS = 10;
+const MAX_MARKET_ROWS = 40;
 const MAX_LEADERBOARD_ROWS = 6;
 const MAX_POSITIONS_ROWS = 5;
 const MAX_RECENT_BETS_ROWS = 5;
+type AppRoute = "desk" | "leagues";
 
 function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -78,12 +78,6 @@ function PriceHistoryChart({ points }: { points: PolymarketHistoryPoint[] }) {
 
   return (
     <svg className="history-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Outcome price history">
-      <defs>
-        <linearGradient id="historyFill" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="rgba(42, 212, 183, 0.45)" />
-          <stop offset="100%" stopColor="rgba(42, 212, 183, 0.04)" />
-        </linearGradient>
-      </defs>
       <line x1={padding} y1={padding} x2={width - padding} y2={padding} className="history-guide" />
       <line
         x1={padding}
@@ -94,13 +88,7 @@ function PriceHistoryChart({ points }: { points: PolymarketHistoryPoint[] }) {
       />
       <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} className="history-guide" />
       {hasLine ? (
-        <>
-          <path
-            d={`M${padding} ${height - padding} ${path} L${width - padding} ${height - padding} Z`}
-            fill="url(#historyFill)"
-          />
-          <path d={path} fill="none" stroke="#2ad4b7" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
-        </>
+        <path d={path} fill="none" stroke="#2ad4b7" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
       ) : (
         <text x={width / 2} y={height / 2} textAnchor="middle" className="history-empty-text">
           Not enough history points yet.
@@ -111,6 +99,9 @@ function PriceHistoryChart({ points }: { points: PolymarketHistoryPoint[] }) {
 }
 
 export default function App() {
+  const [currentRoute, setCurrentRoute] = useState<AppRoute>(() =>
+    window.location.pathname.startsWith("/leagues") ? "leagues" : "desk",
+  );
   const [booting, setBooting] = useState(!runtimeConfigError);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [signInForm, setSignInForm] = useState<SignInForm>(emptySignInForm);
@@ -133,7 +124,6 @@ export default function App() {
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
   const [marketHistory, setMarketHistory] = useState<PolymarketHistoryPoint[]>([]);
-  const [isLoadingMarketHistory, setIsLoadingMarketHistory] = useState(false);
   const [isLoadingTags, setIsLoadingTags] = useState(false);
   const [isOpeningSlug, setIsOpeningSlug] = useState(false);
 
@@ -174,15 +164,26 @@ export default function App() {
     setNotice(null);
   }, []);
 
-  const loadMarkets = useCallback(async () => {
+  const navigateTo = useCallback((next: AppRoute) => {
+    const nextPath = next === "leagues" ? "/leagues" : "/";
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, "", nextPath);
+    }
+    setCurrentRoute(next);
+  }, []);
+
+  const loadMarkets = useCallback(
+    async (overrides?: { mode?: "trending" | "recent"; tagSlug?: string | null }) => {
+      const requestedMode = overrides?.mode ?? feedMode;
+      const requestedTag = overrides ? (overrides.tagSlug ?? null) : selectedTagSlug;
     setIsRefreshingMarkets(true);
     try {
       const list = await runAppEffect(
         Effect.gen(function* () {
           const polymarket = yield* PolymarketClient;
           return yield* polymarket.listMarkets({
-            mode: feedMode,
-            tagSlug: selectedTagSlug ?? undefined,
+              mode: requestedMode,
+              tagSlug: requestedTag ?? undefined,
             limit: 100,
           });
         }),
@@ -200,7 +201,9 @@ export default function App() {
     } finally {
       setIsRefreshingMarkets(false);
     }
-  }, [feedMode, selectedTagSlug]);
+    },
+    [feedMode, selectedTagSlug],
+  );
 
   const loadTags = useCallback(async () => {
     setIsLoadingTags(true);
@@ -220,7 +223,6 @@ export default function App() {
   }, []);
 
   const loadMarketHistory = useCallback(async (marketId: string, outcome: string) => {
-    setIsLoadingMarketHistory(true);
     try {
       const points = await runAppEffect(
         Effect.gen(function* () {
@@ -232,8 +234,6 @@ export default function App() {
     } catch (historyError) {
       setMarketHistory([]);
       setError(extractErrorMessage(historyError));
-    } finally {
-      setIsLoadingMarketHistory(false);
     }
   }, []);
 
@@ -435,6 +435,14 @@ export default function App() {
     const handle = setTimeout(() => setNotice(null), 5_500);
     return () => clearTimeout(handle);
   }, [notice]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      setCurrentRoute(window.location.pathname.startsWith("/leagues") ? "leagues" : "desk");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   useEffect(() => {
     if (!selectedMarket) {
@@ -777,6 +785,23 @@ export default function App() {
         </div>
 
         <div className="topbar-right">
+          <div className="route-switch">
+            <button
+              type="button"
+              className={currentRoute === "desk" ? "" : "secondary"}
+              onClick={() => navigateTo("desk")}
+            >
+              Desk
+            </button>
+            <button
+              type="button"
+              className={currentRoute === "leagues" ? "" : "secondary"}
+              onClick={() => navigateTo("leagues")}
+            >
+              League Setup
+            </button>
+          </div>
+
           <div className="identity-chip">
             <span className="avatar" style={{ backgroundColor: session.user.accentColor }}>
               {session.user.displayName.slice(0, 1).toUpperCase()}
@@ -796,209 +821,233 @@ export default function App() {
       {error ? <div className="banner error">{error}</div> : null}
       {notice ? <div className="banner notice">{notice}</div> : null}
 
-      <main className="layout-grid">
-        <aside className="panel glass sidebar">
-          <section>
-            <h2>Your Leagues</h2>
-            <p className="muted">Track equity and invite others with league code.</p>
+      {currentRoute === "leagues" ? (
+        <main className="route-shell">
+          <section className="panel glass league-admin-panel">
+            <div className="panel-head">
+              <div>
+                <h2>League Setup</h2>
+                <p className="muted">Create new leagues or join with invite code.</p>
+              </div>
+              <button type="button" className="secondary" onClick={() => navigateTo("desk")}>
+                Back to desk
+              </button>
+            </div>
+            <div className="league-admin-grid">
+              <section>
+                <h3>Create League</h3>
+                <form className="stack compact" onSubmit={handleCreateLeague}>
+                  <input
+                    required
+                    value={createLeagueForm.name}
+                    onChange={(event) =>
+                      setCreateLeagueForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    placeholder="League name"
+                  />
+                  <input
+                    required
+                    type="number"
+                    min={100}
+                    step={100}
+                    value={createLeagueForm.bankroll}
+                    onChange={(event) =>
+                      setCreateLeagueForm((current) => ({
+                        ...current,
+                        bankroll: event.target.value,
+                      }))
+                    }
+                    placeholder="Starting bankroll"
+                  />
+                  <button type="submit" disabled={busy === "createLeague"}>
+                    {busy === "createLeague" ? "Creating..." : "Create"}
+                  </button>
+                </form>
+              </section>
 
-            <div className="league-list">
-              {leagues.length === 0 ? <p className="muted">No leagues yet. Create one to start.</p> : null}
-              {leagues.slice(0, MAX_SIDEBAR_LEAGUES).map((league) => (
+              <section>
+                <h3>Join League</h3>
+                <form className="stack compact" onSubmit={handleJoinLeague}>
+                  <input
+                    required
+                    value={joinCode}
+                    onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
+                    maxLength={8}
+                    placeholder="Invite code"
+                  />
+                  <button type="submit" disabled={busy === "joinLeague"}>
+                    {busy === "joinLeague" ? "Joining..." : "Join"}
+                  </button>
+                </form>
+              </section>
+
+              <section>
+                <h3>Your Leagues</h3>
+                <div className="league-list">
+                  {leagues.length === 0 ? <p className="muted">No leagues yet. Create one to start.</p> : null}
+                  {leagues.map((league) => (
+                    <button
+                      type="button"
+                      key={league.leagueId}
+                      className={`league-item ${league.leagueId === selectedLeagueId ? "active" : ""}`}
+                      onClick={() => {
+                        handleSelectLeague(league.leagueId);
+                        navigateTo("desk");
+                      }}
+                    >
+                      <div>
+                        <strong>{league.name}</strong>
+                        <small>Code {league.code}</small>
+                      </div>
+                      <div className="league-meta">
+                        <span>{league.memberCount} players</span>
+                        <span>{formatCurrency(league.myCash)} cash</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </section>
+        </main>
+      ) : (
+        <main className="layout-grid">
+          <section className="panel glass markets-panel">
+            <div className="panel-head">
+              <div>
+                <h2>Polymarket Feed</h2>
+                <p className="muted">Browse markets by feed, slug, and tags.</p>
+              </div>
+              <span className="status-pill">
+                {isRefreshingMarkets ? "Refreshing" : `${Math.min(markets.length, MAX_MARKET_ROWS)} shown`}
+              </span>
+            </div>
+
+            <div className="market-controls-row">
+              <div className="toggle-row">
                 <button
                   type="button"
-                  key={league.leagueId}
-                  className={`league-item ${league.leagueId === selectedLeagueId ? "active" : ""}`}
-                  onClick={() => void handleSelectLeague(league.leagueId)}
+                  className={feedMode === "trending" ? "" : "secondary"}
+                  onClick={() => {
+                    setFeedMode("trending");
+                    void loadMarkets({ mode: "trending" });
+                  }}
                 >
-                  <div>
-                    <strong>{league.name}</strong>
-                    <small>Code {league.code}</small>
+                  Trending
+                </button>
+                <button
+                  type="button"
+                  className={feedMode === "recent" ? "" : "secondary"}
+                  onClick={() => {
+                    setFeedMode("recent");
+                    void loadMarkets({ mode: "recent" });
+                  }}
+                >
+                  Recent
+                </button>
+              </div>
+
+              <form className="slug-inline" onSubmit={handleOpenSlug}>
+                <input
+                  value={slugInput}
+                  onChange={(event) => setSlugInput(event.target.value)}
+                  placeholder="Open by slug..."
+                  aria-label="Open market by slug"
+                />
+                <button type="submit" disabled={isOpeningSlug || !slugInput.trim()}>
+                  {isOpeningSlug ? "..." : "Open"}
+                </button>
+              </form>
+
+              <div className="tag-filter-inline">
+                <input
+                  value={tagSearch}
+                  onChange={(event) => setTagSearch(event.target.value)}
+                  placeholder="Filter tags..."
+                  aria-label="Filter tags"
+                />
+                {selectedTagSlug ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      setSelectedTagSlug(null);
+                      void loadMarkets({ tagSlug: null });
+                    }}
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="tag-list single-row">
+              {isLoadingTags ? <span className="muted">Loading tags...</span> : null}
+              {!isLoadingTags &&
+                visibleTags.slice(0, 40).map((tag) => (
+                  <button
+                    type="button"
+                    key={tag.id}
+                    className={`tag-chip ${selectedTagSlug === tag.slug ? "active" : ""}`}
+                    onClick={() => {
+                      setSelectedTagSlug(tag.slug);
+                      void loadMarkets({ tagSlug: tag.slug });
+                    }}
+                    title={tag.slug}
+                  >
+                    {tag.label}
+                  </button>
+                ))}
+            </div>
+
+            <div className="market-grid">
+              {markets.slice(0, MAX_MARKET_ROWS).map((market) => (
+                <button
+                  type="button"
+                  key={market.marketId}
+                  className={`market-card ${market.marketId === selectedMarketId ? "active" : ""}`}
+                  onClick={() => setSelectedMarketId(market.marketId)}
+                >
+                  <h3>{shortMarket(market.question)}</h3>
+                  <div className="market-outcomes">
+                    {market.outcomes.map((outcome) => (
+                      <span key={`${market.marketId}-${outcome.name}`}>
+                        {outcome.name}: {formatPercent(outcome.price)}
+                      </span>
+                    ))}
                   </div>
-                  <div className="league-meta">
-                    <span>{league.memberCount} players</span>
-                    <span>{formatCurrency(league.myCash)} cash</span>
+                  <div className="market-stats">
+                    <span>Vol {formatCurrency(market.volume)}</span>
+                    <span>Liquidity {formatCurrency(market.liquidity)}</span>
                   </div>
                 </button>
               ))}
-              {leagues.length > MAX_SIDEBAR_LEAGUES ? (
-                <p className="muted">Showing {MAX_SIDEBAR_LEAGUES} of {leagues.length} leagues.</p>
+              {markets.length > MAX_MARKET_ROWS ? (
+                <p className="muted">Showing {MAX_MARKET_ROWS} of {markets.length} markets.</p>
               ) : null}
             </div>
           </section>
 
-          <section>
-            <h3>Create League</h3>
-            <form className="stack compact" onSubmit={handleCreateLeague}>
-              <input
-                required
-                value={createLeagueForm.name}
-                onChange={(event) =>
-                  setCreateLeagueForm((current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-                placeholder="League name"
-              />
-              <input
-                required
-                type="number"
-                min={100}
-                step={100}
-                value={createLeagueForm.bankroll}
-                onChange={(event) =>
-                  setCreateLeagueForm((current) => ({
-                    ...current,
-                    bankroll: event.target.value,
-                  }))
-                }
-                placeholder="Starting bankroll"
-              />
-              <button type="submit" disabled={busy === "createLeague"}>
-                {busy === "createLeague" ? "Creating..." : "Create"}
-              </button>
-            </form>
-          </section>
-
-          <section>
-            <h3>Join League</h3>
-            <form className="stack compact" onSubmit={handleJoinLeague}>
-              <input
-                required
-                value={joinCode}
-                onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-                maxLength={8}
-                placeholder="Invite code"
-              />
-              <button type="submit" disabled={busy === "joinLeague"}>
-                {busy === "joinLeague" ? "Joining..." : "Join"}
-              </button>
-            </form>
-          </section>
-        </aside>
-
-        <section className="panel glass markets-panel">
-          <div className="panel-head">
-            <div>
-              <h2>Polymarket Feed</h2>
-              <p className="muted">Open by slug, browse tags, or view default feeds.</p>
-            </div>
-            <span className="status-pill">
-              {isRefreshingMarkets ? "Refreshing" : `${Math.min(markets.length, MAX_MARKET_ROWS)} shown`}
-            </span>
-          </div>
-
-          <form className="slug-row" onSubmit={handleOpenSlug}>
-            <label>
-              <span>Open market by slug</span>
-              <input
-                value={slugInput}
-                onChange={(event) => setSlugInput(event.target.value)}
-                placeholder="will-trump-deport-less-than-250000"
-              />
-            </label>
-            <button type="submit" disabled={isOpeningSlug || !slugInput.trim()}>
-              {isOpeningSlug ? "Opening..." : "Open slug"}
-            </button>
-          </form>
-
-          <div className="feed-controls">
-            <div className="toggle-row">
-              <button
-                type="button"
-                className={feedMode === "trending" ? "" : "secondary"}
-                onClick={() => setFeedMode("trending")}
-              >
-                Trending
-              </button>
-              <button
-                type="button"
-                className={feedMode === "recent" ? "" : "secondary"}
-                onClick={() => setFeedMode("recent")}
-              >
-                Recent
-              </button>
-            </div>
-
-            <div className="tag-browser">
-              <div className="tag-browser-head">
-                <strong>Browse tags</strong>
-                {selectedTagSlug ? (
-                  <button type="button" className="secondary" onClick={() => setSelectedTagSlug(null)}>
-                    Clear tag
-                  </button>
-                ) : null}
+          <aside className="panel glass league-panel">
+            <section className="market-history side-history">
+              <div className="market-history-head">
+                <h3>Market History</h3>
+                {selectedOutcome ? <span className="status-pill">{selectedOutcome}</span> : null}
               </div>
-              <input
-                value={tagSearch}
-                onChange={(event) => setTagSearch(event.target.value)}
-                placeholder="Filter tags..."
-                aria-label="Filter tags"
-              />
-              <div className="tag-list">
-                {isLoadingTags ? <span className="muted">Loading tags...</span> : null}
-                {!isLoadingTags &&
-                  visibleTags.slice(0, 24).map((tag) => (
-                    <button
-                      type="button"
-                      key={tag.id}
-                      className={`tag-chip ${selectedTagSlug === tag.slug ? "active" : ""}`}
-                      onClick={() => setSelectedTagSlug(tag.slug)}
-                      title={tag.slug}
-                    >
-                      {tag.label}
-                    </button>
-                  ))}
+              {selectedMarket ? <p className="muted">{shortMarket(selectedMarket.question)}</p> : null}
+              <div className="history-frame">
+                <PriceHistoryChart points={marketHistory} />
               </div>
-            </div>
-          </div>
+              <div className="history-stats">
+                <span>Latest {historyStats ? formatPercent(historyStats.latest) : "--"}</span>
+                <span>Low {historyStats ? formatPercent(historyStats.low) : "--"}</span>
+                <span>High {historyStats ? formatPercent(historyStats.high) : "--"}</span>
+              </div>
+            </section>
 
-          <section className="market-history">
-            <div className="market-history-head">
-              <h3>Focused Market History</h3>
-              {selectedOutcome ? <span className="status-pill">{selectedOutcome}</span> : null}
-            </div>
-            {selectedMarket ? <p className="muted">{shortMarket(selectedMarket.question)}</p> : null}
-            <div className="history-frame">
-              <PriceHistoryChart points={marketHistory} />
-            </div>
-            <div className="history-stats">
-              <span>Latest {historyStats ? formatPercent(historyStats.latest) : "--"}</span>
-              <span>Low {historyStats ? formatPercent(historyStats.low) : "--"}</span>
-              <span>High {historyStats ? formatPercent(historyStats.high) : "--"}</span>
-            </div>
-          </section>
-
-          <div className="market-grid">
-            {markets.slice(0, MAX_MARKET_ROWS).map((market) => (
-              <button
-                type="button"
-                key={market.marketId}
-                className={`market-card ${market.marketId === selectedMarketId ? "active" : ""}`}
-                onClick={() => setSelectedMarketId(market.marketId)}
-              >
-                <h3>{shortMarket(market.question)}</h3>
-                <div className="market-outcomes">
-                  {market.outcomes.map((outcome) => (
-                    <span key={`${market.marketId}-${outcome.name}`}>
-                      {outcome.name}: {formatPercent(outcome.price)}
-                    </span>
-                  ))}
-                </div>
-                <div className="market-stats">
-                  <span>Vol {formatCurrency(market.volume)}</span>
-                  <span>Liquidity {formatCurrency(market.liquidity)}</span>
-                </div>
-              </button>
-            ))}
-            {markets.length > MAX_MARKET_ROWS ? (
-              <p className="muted">Showing {MAX_MARKET_ROWS} of {markets.length} markets.</p>
-            ) : null}
-          </div>
-        </section>
-
-        <aside className="panel glass league-panel">
           {selectedLeague && leagueDetail ? (
             <>
               <div className="panel-head">
@@ -1130,8 +1179,9 @@ export default function App() {
               <p>Create or join a league to start placing fantasy positions.</p>
             </div>
           )}
-        </aside>
-      </main>
+          </aside>
+        </main>
+      )}
     </div>
   );
 }
