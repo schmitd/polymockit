@@ -60,9 +60,9 @@ bun run dev:web
 
 This repo includes `railway.json` configured to:
 
-- install with Bun,
-- build the monorepo,
-- serve the Vite preview server from `apps/web`.
+- install/build with Bun via Nixpacks,
+- compile the monorepo,
+- serve `apps/web/dist` from a production static web server process.
 
 Deploy flow:
 
