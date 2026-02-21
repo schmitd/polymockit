@@ -14,5 +14,11 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    allowedHosts: ["polymockit.davidcschmitt.com"],
+  },
+  preview: {
+    host: true,
+    port: 5173,
+    allowedHosts: ["polymockit.davidcschmitt.com"],
   },
 });
