@@ -2,7 +2,7 @@
 
 Polymockit is a Bun + TypeScript monorepo for running a Polymarket fantasy league:
 
-- Users sign in with username + PIN.
+- Users sign in with Shoo OAuth.
 - Users can create or join leagues via invite code.
 - League members use fake bankroll to buy positions on any live Polymarket market.
 - Standings are marked-to-market using live Polymarket prices.
@@ -42,7 +42,8 @@ VITE_CONVEX_URL=<your convex deployment url>
 
 # Option B: apps/web/.env
 VITE_CONVEX_URL=<your convex deployment url>
-VITE_DEFAULT_USERNAME=<optional>
+SITE_URL=<your web app origin, e.g. http://localhost:5173>
+VITE_SHOO_BASE_URL=<optional, defaults to https://shoo.dev>
 ```
 
 Note: `apps/web` also accepts `CONVEX_URL` from repo-level `.env.local` (the same file `convex dev` uses).

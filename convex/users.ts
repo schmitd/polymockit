@@ -1,107 +1,51 @@
-import { v, ConvexError } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import {
-  createSessionToken,
-  hashPin,
-  normalizeDisplayName,
-  normalizeUsername,
-  optionalUserByToken,
-  randomAccentColor,
-} from "./lib/auth";
+import { normalizeDisplayName, normalizeUsername, randomAccentColor, requireAuthUser } from "./lib/auth";
 
 export const current = query({
-  args: {
-    token: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const identity = await optionalUserByToken(ctx, args.token);
-    if (!identity) {
-      return null;
-    }
-
+  args: {},
+  handler: async (ctx) => {
+    const user = await requireAuthUser(ctx);
     return {
-      id: identity.user._id,
-      username: identity.user.username,
-      displayName: identity.user.displayName,
-      accentColor: identity.user.accentColor,
+      id: user._id,
+      username: user.username ?? user.email?.split("@")[0] ?? "player",
+      displayName: user.displayName ?? user.name ?? user.username ?? "Player",
+      accentColor: user.accentColor ?? randomAccentColor(),
     };
   },
 });
 
-export const signIn = mutation({
+export const upsertProfile = mutation({
   args: {
     username: v.string(),
     displayName: v.string(),
-    pin: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthUser(ctx);
     const username = normalizeUsername(args.username);
     const displayName = normalizeDisplayName(args.displayName);
-    const pinHash = hashPin(args.pin);
 
     const existing = await ctx.db.query("users").withIndex("by_username", (q) => q.eq("username", username)).first();
+    if (existing && existing._id !== user._id) {
+      throw new ConvexError("Username is already taken.");
+    }
 
-    let userId;
-    let user;
     const now = Date.now();
-
-    if (existing) {
-      if (existing.pinHash !== pinHash) {
-        throw new ConvexError("Incorrect PIN for this username.");
-      }
-      userId = existing._id;
-      await ctx.db.patch(existing._id, {
-        displayName,
-        updatedAt: now,
-      });
-      user = { ...existing, displayName };
-    } else {
-      userId = await ctx.db.insert("users", {
-        username,
-        displayName,
-        pinHash,
-        accentColor: randomAccentColor(),
-        createdAt: now,
-        updatedAt: now,
-      });
-      user = await ctx.db.get(userId);
-    }
-
-    if (!user) {
-      throw new ConvexError("Unable to create session.");
-    }
-
-    const token = createSessionToken();
-    await ctx.db.insert("sessions", {
-      token,
-      userId,
-      createdAt: now,
-      lastSeenAt: now,
+    const accentColor = user.accentColor ?? randomAccentColor();
+    await ctx.db.patch(user._id, {
+      username,
+      displayName,
+      name: displayName,
+      accentColor,
+      updatedAt: now,
+      createdAt: user.createdAt ?? now,
     });
 
     return {
-      token,
-      user: {
-        id: userId,
-        username: user.username,
-        displayName: user.displayName,
-        accentColor: user.accentColor,
-      },
+      id: user._id,
+      username,
+      displayName,
+      accentColor,
     };
-  },
-});
-
-export const signOut = mutation({
-  args: {
-    token: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const session = await ctx.db.query("sessions").withIndex("by_token", (q) => q.eq("token", args.token)).first();
-    if (!session) {
-      return { ok: true };
-    }
-
-    await ctx.db.delete(session._id);
-    return { ok: true };
   },
 });

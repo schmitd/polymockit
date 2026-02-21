@@ -1,5 +1,5 @@
 import type {
-  AuthSession,
+  AppUser,
   EnrichedPosition,
   LeagueDetail,
   LeagueStanding,
@@ -8,10 +8,12 @@ import type {
   PolymarketMarket,
   PolymarketTag,
 } from "@polymockit/effect-services";
-import { FantasyLeagueClient, PolymarketClient, SessionStore } from "@polymockit/effect-services";
+import { FantasyLeagueClient, PolymarketClient } from "@polymockit/effect-services";
+import { useConvexAuth } from "convex/react";
 import { Effect } from "effect";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { getRuntimeConfigError, runAppEffect, subscribeLiveQuery } from "./effect/runtime";
+import { getRuntimeConfigError, runAppEffect } from "./effect/runtime";
+import { signIn, signOut } from "./shoo";
 import {
   buildLeagueAnalytics,
   formatCurrency,
@@ -21,20 +23,7 @@ import {
   shortMarket,
 } from "./lib/analytics";
 
-type SignInForm = {
-  username: string;
-  displayName: string;
-  pin: string;
-};
-
-const defaultUsername = import.meta.env.VITE_DEFAULT_USERNAME?.trim() ?? "";
 const runtimeConfigError = getRuntimeConfigError();
-
-const emptySignInForm: SignInForm = {
-  username: defaultUsername,
-  displayName: defaultUsername,
-  pin: "",
-};
 
 const defaultCreateLeague = {
   name: "",
@@ -99,12 +88,12 @@ function PriceHistoryChart({ points }: { points: PolymarketHistoryPoint[] }) {
 }
 
 export default function App() {
+  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() =>
     window.location.pathname.startsWith("/leagues") ? "leagues" : "desk",
   );
   const [booting, setBooting] = useState(!runtimeConfigError);
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [signInForm, setSignInForm] = useState<SignInForm>(emptySignInForm);
+  const [session, setSession] = useState<{ user: AppUser } | null>(null);
   const [createLeagueForm, setCreateLeagueForm] = useState(defaultCreateLeague);
   const [joinCode, setJoinCode] = useState("");
   const [stakeInput, setStakeInput] = useState("100");
@@ -285,23 +274,24 @@ export default function App() {
         return;
       }
 
+      if (isAuthLoading) {
+        setBooting(true);
+        return;
+      }
+
+      if (!isAuthenticated) {
+        setSession(null);
+        setBooting(false);
+        return;
+      }
+
       setBooting(true);
 
       try {
-        const result = await runAppEffect(
+        const user = await runAppEffect(
           Effect.gen(function* () {
             const api = yield* FantasyLeagueClient;
-            const sessionStore = yield* SessionStore;
-
-            const token = yield* sessionStore.getToken;
-            const lastUsername = yield* sessionStore.getLastUsername;
-            const user = token ? yield* api.currentUser(token) : null;
-
-            return {
-              token,
-              user,
-              lastUsername,
-            };
+            return yield* api.currentUser();
           }),
         );
 
@@ -309,32 +299,7 @@ export default function App() {
           return;
         }
 
-        if (result.lastUsername) {
-          const restoredUsername = result.lastUsername;
-          setSignInForm((current) => ({
-            ...current,
-            username: current.username || restoredUsername,
-            displayName: current.displayName || restoredUsername,
-          }));
-        }
-
-        if (!result.token || !result.user) {
-          if (result.token) {
-            await runAppEffect(
-              Effect.gen(function* () {
-                const sessionStore = yield* SessionStore;
-                yield* sessionStore.clearToken;
-              }),
-            );
-          }
-          return;
-        }
-
-        const nextSession: AuthSession = {
-          token: result.token,
-          user: result.user,
-        };
-        setSession(nextSession);
+        setSession({ user });
       } catch (bootstrapError) {
         if (!cancelled) {
           setError(extractErrorMessage(bootstrapError));
@@ -351,7 +316,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated, isAuthLoading]);
 
   useEffect(() => {
     if (runtimeConfigError) {
@@ -382,22 +347,39 @@ export default function App() {
     if (!session || !selectedLeagueId) {
       return;
     }
-    setIsRefreshingLeague(true);
-    const unsubscribe = subscribeLiveQuery<LeagueDetail>(
-      "leagues:detail",
-      { token: session.token, leagueId: selectedLeagueId },
-      (detail) => {
-        setLeagueDetail(detail);
-        void hydrateLeagueAnalytics(detail);
-        setIsRefreshingLeague(false);
-      },
-      (liveError) => {
-        setError(liveError.message);
-        setIsRefreshingLeague(false);
-      },
-    );
+    let cancelled = false;
+    const refresh = async () => {
+      setIsRefreshingLeague(true);
+      try {
+        const detail = await runAppEffect(
+          Effect.gen(function* () {
+            const api = yield* FantasyLeagueClient;
+            return yield* api.leagueDetail(selectedLeagueId);
+          }),
+        );
+        if (!cancelled) {
+          setLeagueDetail(detail);
+          await hydrateLeagueAnalytics(detail);
+        }
+      } catch (liveError) {
+        if (!cancelled) {
+          setError(extractErrorMessage(liveError));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRefreshingLeague(false);
+        }
+      }
+    };
 
-    return () => unsubscribe();
+    void refresh();
+    const handle = setInterval(() => {
+      void refresh();
+    }, 12_000);
+    return () => {
+      cancelled = true;
+      clearInterval(handle);
+    };
   }, [hydrateLeagueAnalytics, selectedLeagueId, session]);
 
   useEffect(() => {
@@ -409,11 +391,18 @@ export default function App() {
       setPositions([]);
       return;
     }
-
-    const unsubscribe = subscribeLiveQuery<LeagueSummary[]>(
-      "leagues:listForUser",
-      { token: session.token },
-      (leagueList) => {
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const leagueList = await runAppEffect(
+          Effect.gen(function* () {
+            const api = yield* FantasyLeagueClient;
+            return yield* api.listLeagues();
+          }),
+        );
+        if (cancelled) {
+          return;
+        }
         setLeagues(leagueList);
         setSelectedLeagueId((current) => {
           if (current && leagueList.some((league) => league.leagueId === current)) {
@@ -421,11 +410,21 @@ export default function App() {
           }
           return leagueList[0]?.leagueId ?? null;
         });
-      },
-      (liveError) => setError(liveError.message),
-    );
+      } catch (liveError) {
+        if (!cancelled) {
+          setError(extractErrorMessage(liveError));
+        }
+      }
+    };
 
-    return () => unsubscribe();
+    void refresh();
+    const handle = setInterval(() => {
+      void refresh();
+    }, 12_000);
+    return () => {
+      cancelled = true;
+      clearInterval(handle);
+    };
   }, [session]);
 
   useEffect(() => {
@@ -468,53 +467,23 @@ export default function App() {
     void loadMarketHistory(selectedMarket.marketId, selectedOutcome);
   }, [loadMarketHistory, selectedMarket, selectedOutcome]);
 
-  const handleSignIn = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSignIn = async () => {
     clearBanner();
     setBusy("signin");
-
     try {
-      const nextSession = await runAppEffect(
-        Effect.gen(function* () {
-          const api = yield* FantasyLeagueClient;
-          const sessionStore = yield* SessionStore;
-
-          const signedIn = yield* api.signIn(signInForm);
-          yield* sessionStore.setToken(signedIn.token);
-          yield* sessionStore.setLastUsername(signedIn.user.username);
-
-          return signedIn;
-        }),
-      );
-
-      setSession(nextSession);
-      setSignInForm((current) => ({ ...current, pin: "" }));
-      setNotice(`Welcome, ${nextSession.user.displayName}.`);
+      await signIn();
     } catch (signInError) {
       setError(extractErrorMessage(signInError));
-    } finally {
       setBusy(null);
     }
   };
 
   const handleSignOut = async () => {
-    if (!session) {
-      return;
-    }
-
     clearBanner();
     setBusy("signout");
 
     try {
-      await runAppEffect(
-        Effect.gen(function* () {
-          const api = yield* FantasyLeagueClient;
-          const sessionStore = yield* SessionStore;
-          yield* api.signOut(session.token);
-          yield* sessionStore.clearToken;
-        }),
-      );
-
+      await signOut();
       setSession(null);
       setLeagues([]);
       setLeagueDetail(null);
@@ -532,7 +501,7 @@ export default function App() {
 
   const handleCreateLeague = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!session) {
+    if (!isAuthenticated) {
       return;
     }
 
@@ -545,7 +514,6 @@ export default function App() {
         Effect.gen(function* () {
           const api = yield* FantasyLeagueClient;
           return yield* api.createLeague({
-            token: session.token,
             name: createLeagueForm.name,
             startingBankroll: Number.isFinite(bankroll) ? bankroll : undefined,
           });
@@ -564,7 +532,7 @@ export default function App() {
 
   const handleJoinLeague = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!session) {
+    if (!isAuthenticated) {
       return;
     }
 
@@ -576,7 +544,6 @@ export default function App() {
         Effect.gen(function* () {
           const api = yield* FantasyLeagueClient;
           return yield* api.joinLeague({
-            token: session.token,
             code: joinCode,
           });
         }),
@@ -626,7 +593,7 @@ export default function App() {
   const handlePlaceBet = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!session || !selectedLeague || !selectedMarket || !selectedOutcome) {
+    if (!selectedLeague || !selectedMarket || !selectedOutcome) {
       setError("Choose a league, market, and outcome first.");
       return;
     }
@@ -655,7 +622,6 @@ export default function App() {
         Effect.gen(function* () {
           const api = yield* FantasyLeagueClient;
           return yield* api.placeBet({
-            token: session.token,
             leagueId: selectedLeague.leagueId,
             marketId: selectedMarket.marketId,
             marketSlug: selectedMarket.slug,
@@ -707,73 +673,22 @@ export default function App() {
 
   if (!session) {
     return (
-      <div className="auth-shell">
-        <section className="auth-panel glass">
-          <p className="eyebrow">Polymockit</p>
-          <h1>Build your prediction market fantasy league.</h1>
-          <p>
-            Use fake bankroll, draft from live Polymarket contracts, and compete on portfolio equity inside private
-            leagues.
-          </p>
+    <div className="auth-shell">
+      <section className="auth-panel glass">
+        <p className="eyebrow">Polymockit</p>
+        <h1>Build your prediction market fantasy league.</h1>
+        <p>
+          Use fake bankroll, draft from live Polymarket contracts, and compete on portfolio equity inside private
+          leagues.
+        </p>
+        <button type="button" onClick={() => void handleSignIn()} disabled={busy === "signin"}>
+          {busy === "signin" ? "Signing in..." : "Sign in with Shoo"}
+        </button>
 
-          <form className="stack" onSubmit={handleSignIn}>
-            <label>
-              Username
-              <input
-                required
-                value={signInForm.username}
-                onChange={(event) =>
-                  setSignInForm((current) => ({
-                    ...current,
-                    username: event.target.value,
-                  }))
-                }
-                placeholder="e.g. alpha_sharp"
-              />
-            </label>
-
-            <label>
-              Display name
-              <input
-                required
-                value={signInForm.displayName}
-                onChange={(event) =>
-                  setSignInForm((current) => ({
-                    ...current,
-                    displayName: event.target.value,
-                  }))
-                }
-                placeholder="How others see you"
-              />
-            </label>
-
-            <label>
-              PIN (4-16 chars)
-              <input
-                required
-                minLength={4}
-                maxLength={16}
-                type="password"
-                value={signInForm.pin}
-                onChange={(event) =>
-                  setSignInForm((current) => ({
-                    ...current,
-                    pin: event.target.value,
-                  }))
-                }
-                placeholder="••••"
-              />
-            </label>
-
-            <button type="submit" disabled={busy === "signin"}>
-              {busy === "signin" ? "Signing in..." : "Enter league terminal"}
-            </button>
-          </form>
-
-          {error ? <div className="banner error">{error}</div> : null}
-        </section>
-      </div>
-    );
+        {error ? <div className="banner error">{error}</div> : null}
+      </section>
+    </div>
+  );
   }
 
   return (

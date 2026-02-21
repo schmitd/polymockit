@@ -20,58 +20,94 @@ export function normalizeDisplayName(raw: string): string {
   return trimmed;
 }
 
-export function hashPin(pin: string): string {
-  const normalized = pin.trim();
-  if (normalized.length < 4 || normalized.length > 16) {
-    throw new ConvexError("PIN must be 4-16 characters.");
-  }
-
-  // Deterministic hash used only for lightweight fantasy auth.
-  let hash = 2166136261;
-  for (let i = 0; i < normalized.length; i += 1) {
-    hash ^= normalized.charCodeAt(i);
-    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-  }
-  return (hash >>> 0).toString(16);
-}
-
-export function createSessionToken(): string {
-  return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-}
-
 export function randomAccentColor(): string {
   const palette = ["#0A9396", "#EE9B00", "#BB3E03", "#005F73", "#CA6702", "#8A5CF6", "#2A9D8F"];
   return palette[Math.floor(Math.random() * palette.length)] ?? "#0A9396";
 }
 
-export async function requireUserByToken(ctx: any, token: string) {
-  const session = await ctx.db.query("sessions").withIndex("by_token", (q: any) => q.eq("token", token)).first();
-  if (!session) {
-    throw new ConvexError("Session expired. Please sign in again.");
-  }
-
-  const user = await ctx.db.get(session.userId);
-  if (!user) {
-    throw new ConvexError("User account was not found.");
-  }
-
-  return { user, session };
+function pickDisplayName(identity: { name?: string | null; email?: string | null }): string {
+  const fallback = identity.email?.split("@")[0] ?? "Player";
+  return normalizeDisplayName(identity.name ?? fallback);
 }
 
-export async function optionalUserByToken(ctx: any, token: string | undefined) {
-  if (!token) {
-    return null;
+function pickUsernameSeed(identity: { nickname?: string | null; preferredUsername?: string | null; email?: string | null }) {
+  const raw = identity.nickname ?? identity.preferredUsername ?? identity.email?.split("@")[0] ?? "player";
+  const seed = raw.toLowerCase().replace(/[^a-z0-9_]/g, "");
+  return (seed.length >= 3 ? seed : `player${seed}`).slice(0, 24);
+}
+
+async function ensureUniqueUsername(ctx: any, seed: string, excludeUserId?: string) {
+  for (let index = 0; index < 100; index += 1) {
+    const suffix = index === 0 ? "" : String(index + 1);
+    const candidate = `${seed.slice(0, Math.max(24 - suffix.length, 3))}${suffix}`;
+    const existing = await ctx.db.query("users").withIndex("by_username", (q: any) => q.eq("username", candidate)).first();
+    if (!existing || existing._id === excludeUserId) {
+      return candidate;
+    }
   }
 
-  const session = await ctx.db.query("sessions").withIndex("by_token", (q: any) => q.eq("token", token)).first();
-  if (!session) {
-    return null;
+  return `${seed.slice(0, 18)}_${Math.floor(Math.random() * 100_000)}`;
+}
+
+export async function requireAuthUser(ctx: any) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new ConvexError("Please sign in to continue.");
   }
 
-  const user = await ctx.db.get(session.userId);
+  const now = Date.now();
+  const subject = identity.subject;
+  let user = await ctx.db.query("users").withIndex("by_subject", (q: any) => q.eq("subject", subject)).first();
+
   if (!user) {
-    return null;
+    const displayName = pickDisplayName(identity);
+    const username = await ensureUniqueUsername(ctx, pickUsernameSeed(identity));
+    const userId = await ctx.db.insert("users", {
+      subject,
+      email: identity.email,
+      name: identity.name ?? displayName,
+      image: identity.pictureUrl,
+      username,
+      displayName,
+      accentColor: randomAccentColor(),
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const created = await ctx.db.get(userId);
+    if (!created) {
+      throw new ConvexError("User account was not found.");
+    }
+    return created;
   }
 
-  return { user, session };
+  const patch: Record<string, unknown> = {};
+  if (!user.username) {
+    patch.username = await ensureUniqueUsername(ctx, pickUsernameSeed(identity), user._id);
+  }
+  if (!user.displayName) {
+    const displayName = pickDisplayName(identity);
+    patch.displayName = displayName;
+    patch.name = displayName;
+  }
+  if (!user.accentColor) {
+    patch.accentColor = randomAccentColor();
+  }
+  if (!user.createdAt) {
+    patch.createdAt = now;
+  }
+  if (identity.email && user.email !== identity.email) {
+    patch.email = identity.email;
+  }
+  if (identity.pictureUrl && user.image !== identity.pictureUrl) {
+    patch.image = identity.pictureUrl;
+  }
+
+  if (Object.keys(patch).length > 0) {
+    patch.updatedAt = now;
+    await ctx.db.patch(user._id, patch);
+    user = { ...user, ...patch };
+  }
+
+  return user;
 }

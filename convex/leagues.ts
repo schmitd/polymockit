@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { requireUserByToken } from "./lib/auth";
+import { requireAuthUser } from "./lib/auth";
 import { currency, makeInviteCode, quantity, requireLeagueMember } from "./lib/league";
 
 async function uniqueLeagueCode(ctx: any): Promise<string> {
@@ -17,12 +17,11 @@ async function uniqueLeagueCode(ctx: any): Promise<string> {
 
 export const createLeague = mutation({
   args: {
-    token: v.string(),
     name: v.string(),
     startingBankroll: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { user } = await requireUserByToken(ctx, args.token);
+    const user = await requireAuthUser(ctx);
 
     const trimmedName = args.name.trim().slice(0, 60);
     if (trimmedName.length < 3) {
@@ -63,11 +62,10 @@ export const createLeague = mutation({
 
 export const joinLeague = mutation({
   args: {
-    token: v.string(),
     code: v.string(),
   },
   handler: async (ctx, args) => {
-    const { user } = await requireUserByToken(ctx, args.token);
+    const user = await requireAuthUser(ctx);
     const code = args.code.trim().toUpperCase();
 
     const league = await ctx.db.query("leagues").withIndex("by_code", (q: any) => q.eq("code", code)).first();
@@ -102,11 +100,9 @@ export const joinLeague = mutation({
 });
 
 export const listForUser = query({
-  args: {
-    token: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const { user } = await requireUserByToken(ctx, args.token);
+  args: {},
+  handler: async (ctx) => {
+    const user = await requireAuthUser(ctx);
 
     const memberships = await ctx.db
       .query("leagueMembers")
@@ -142,11 +138,10 @@ export const listForUser = query({
 
 export const detail = query({
   args: {
-    token: v.string(),
     leagueId: v.id("leagues"),
   },
   handler: async (ctx, args) => {
-    const { user } = await requireUserByToken(ctx, args.token);
+    const user = await requireAuthUser(ctx);
     const league = await ctx.db.get(args.leagueId);
 
     if (!league) {
@@ -218,7 +213,6 @@ export const detail = query({
 
 export const placeBet = mutation({
   args: {
-    token: v.string(),
     leagueId: v.id("leagues"),
     marketId: v.string(),
     marketSlug: v.optional(v.string()),
@@ -228,7 +222,7 @@ export const placeBet = mutation({
     stake: v.number(),
   },
   handler: async (ctx, args) => {
-    const { user } = await requireUserByToken(ctx, args.token);
+    const user = await requireAuthUser(ctx);
     const league = await ctx.db.get(args.leagueId);
 
     if (!league) {

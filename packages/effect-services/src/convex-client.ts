@@ -1,18 +1,16 @@
-import { ConvexHttpClient } from "convex/browser";
+import { ConvexReactClient } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { Context, Effect, Layer } from "effect";
-import type { AppUser, AuthSession, LeagueDetail, LeagueSummary } from "./types";
+import type { AppUser, LeagueDetail, LeagueSummary } from "./types";
 
 export interface FantasyLeagueClientApi {
-  currentUser: (token?: string) => Effect.Effect<AppUser | null, Error>;
-  signIn: (input: { username: string; displayName: string; pin: string }) => Effect.Effect<AuthSession, Error>;
-  signOut: (token: string) => Effect.Effect<void, Error>;
-  listLeagues: (token: string) => Effect.Effect<LeagueSummary[], Error>;
-  createLeague: (input: { token: string; name: string; startingBankroll?: number }) => Effect.Effect<{ leagueId: string }, Error>;
-  joinLeague: (input: { token: string; code: string }) => Effect.Effect<{ leagueId: string; alreadyJoined: boolean }, Error>;
-  leagueDetail: (token: string, leagueId: string) => Effect.Effect<LeagueDetail, Error>;
+  currentUser: () => Effect.Effect<AppUser, Error>;
+  upsertProfile: (input: { username: string; displayName: string }) => Effect.Effect<AppUser, Error>;
+  listLeagues: () => Effect.Effect<LeagueSummary[], Error>;
+  createLeague: (input: { name: string; startingBankroll?: number }) => Effect.Effect<{ leagueId: string }, Error>;
+  joinLeague: (input: { code: string }) => Effect.Effect<{ leagueId: string; alreadyJoined: boolean }, Error>;
+  leagueDetail: (leagueId: string) => Effect.Effect<LeagueDetail, Error>;
   placeBet: (input: {
-    token: string;
     leagueId: string;
     marketId: string;
     marketSlug?: string;
@@ -35,38 +33,29 @@ const normalizeError = (error: unknown): Error => {
   return new Error("Unexpected request error.");
 };
 
-export const makeFantasyLeagueClientLayer = (convexUrl: string) => {
-  const client = new ConvexHttpClient(convexUrl);
+export const makeFantasyLeagueClientLayer = (client: ConvexReactClient) => {
 
   const api: FantasyLeagueClientApi = {
-    currentUser: (token?: string) =>
+    currentUser: () =>
       Effect.tryPromise({
         try: async () => {
-          return await client.query(asQuery("users:current"), { token });
+          return await client.query(asQuery("users:current"), {});
         },
         catch: normalizeError,
       }),
 
-    signIn: (input) =>
+    upsertProfile: (input) =>
       Effect.tryPromise({
         try: async () => {
-          return await client.mutation(asMutation("users:signIn"), input);
+          return await client.mutation(asMutation("users:upsertProfile"), input);
         },
         catch: normalizeError,
       }),
 
-    signOut: (token) =>
+    listLeagues: () =>
       Effect.tryPromise({
         try: async () => {
-          await client.mutation(asMutation("users:signOut"), { token });
-        },
-        catch: normalizeError,
-      }),
-
-    listLeagues: (token) =>
-      Effect.tryPromise({
-        try: async () => {
-          return await client.query(asQuery("leagues:listForUser"), { token });
+          return await client.query(asQuery("leagues:listForUser"), {});
         },
         catch: normalizeError,
       }),
@@ -87,11 +76,10 @@ export const makeFantasyLeagueClientLayer = (convexUrl: string) => {
         catch: normalizeError,
       }),
 
-    leagueDetail: (token, leagueId) =>
+    leagueDetail: (leagueId) =>
       Effect.tryPromise({
         try: async () => {
           return await client.query(asQuery("leagues:detail"), {
-            token,
             leagueId,
           });
         },

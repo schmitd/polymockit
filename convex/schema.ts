@@ -3,20 +3,24 @@ import { v } from "convex/values";
 
 export default defineSchema({
   users: defineTable({
-    username: v.string(),
-    displayName: v.string(),
-    pinHash: v.string(),
-    accentColor: v.string(),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  }).index("by_username", ["username"]),
-
-  sessions: defineTable({
-    token: v.string(),
-    userId: v.id("users"),
-    createdAt: v.number(),
-    lastSeenAt: v.number(),
-  }).index("by_token", ["token"]),
+    subject: v.string(),
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    username: v.optional(v.string()),
+    displayName: v.optional(v.string()),
+    accentColor: v.optional(v.string()),
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_subject", ["subject"])
+    .index("by_username", ["username"])
+    .index("email", ["email"])
+    .index("phone", ["phone"]),
 
   leagues: defineTable({
     name: v.string(),

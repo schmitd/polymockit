@@ -1,4 +1,4 @@
-import { ConvexHttpClient } from "convex/browser";
+import { ConvexReactClient } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { Context, Effect, Layer } from "effect";
 import type { PolymarketHistoryPoint, PolymarketMarket, PolymarketTag } from "./types";
@@ -28,8 +28,7 @@ const normalizeError = (error: unknown): Error => {
   return new Error("Polymarket request failed.");
 };
 
-export const makePolymarketClientLayer = (convexUrl: string) => {
-  const client = new ConvexHttpClient(convexUrl);
+export const makePolymarketClientLayer = (client: ConvexReactClient) => {
 
   return Layer.succeed(PolymarketClient, {
     listMarkets: (input = {}) =>

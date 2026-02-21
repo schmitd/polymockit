@@ -6,7 +6,6 @@ export interface AppUser {
 }
 
 export interface AuthSession {
-  token: string;
   user: AppUser;
 }
 
