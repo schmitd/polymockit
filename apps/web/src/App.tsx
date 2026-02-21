@@ -319,21 +319,21 @@ export default function App() {
   }, [isAuthenticated, isAuthLoading]);
 
   useEffect(() => {
-    if (runtimeConfigError) {
+    if (runtimeConfigError || !session) {
       return;
     }
     void loadTags();
-  }, [loadTags]);
+  }, [loadTags, session]);
 
   useEffect(() => {
-    if (runtimeConfigError) {
+    if (runtimeConfigError || !session) {
       return;
     }
     void loadMarkets();
-  }, [loadMarkets]);
+  }, [loadMarkets, session]);
 
   useEffect(() => {
-    if (runtimeConfigError) {
+    if (runtimeConfigError || !session) {
       return;
     }
     const handle = setInterval(() => {
@@ -341,7 +341,7 @@ export default function App() {
     }, 60_000);
 
     return () => clearInterval(handle);
-  }, [loadMarkets]);
+  }, [loadMarkets, session]);
 
   useEffect(() => {
     if (!session || !selectedLeagueId) {

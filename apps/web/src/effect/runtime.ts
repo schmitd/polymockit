@@ -20,7 +20,7 @@ const runtime = runtimeConfigError
   : ManagedRuntime.make(
       Layer.mergeAll(
         makeFantasyLeagueClientLayer(configuredClient!),
-        makePolymarketClientLayer(configuredClient!),
+        makePolymarketClientLayer(),
       ),
     );
 
