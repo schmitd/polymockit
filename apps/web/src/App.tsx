@@ -963,7 +963,6 @@ export default function App() {
             <div className="history-frame">
               <PriceHistoryChart points={marketHistory} />
             </div>
-            {isRefreshingMarkets || isLoadingMarketHistory ? <p className="muted">Loading chart...</p> : null}
             <div className="history-stats">
               <span>Latest {historyStats ? formatPercent(historyStats.latest) : "--"}</span>
               <span>Low {historyStats ? formatPercent(historyStats.low) : "--"}</span>
