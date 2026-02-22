@@ -34,19 +34,20 @@ bun install
 bun run convex:dev
 ```
 
-3. Configure frontend env (either location works):
+3. Configure env:
 
 ```bash
-# Option A: repo root (.env.local)
-VITE_CONVEX_URL=<your convex deployment url>
-
-# Option B: apps/web/.env
+# Repo root (.env.local) - used by Convex CLI and accepted by Vite
 VITE_CONVEX_URL=<your convex deployment url>
 SITE_URL=<your web app origin, e.g. http://localhost:5173>
 VITE_SHOO_BASE_URL=<optional, defaults to https://shoo.dev>
+
+# apps/web/.env - frontend-only values
+VITE_CONVEX_URL=<your convex deployment url>
+VITE_SHOO_BASE_URL=<optional, defaults to https://shoo.dev>
 ```
 
-Note: `apps/web` also accepts `CONVEX_URL` from repo-level `.env.local` (the same file `convex dev` uses).
+Note: `SITE_URL` is required by `convex/auth.config.ts` to set Shoo `applicationID` (`origin:<SITE_URL>`).
 
 4. Start the web app in a second terminal:
 
@@ -67,8 +68,20 @@ This repo includes `railway.json` configured to:
 Deploy flow:
 
 1. Deploy Convex first (`bun run convex:deploy`) and copy the deployment URL.
-2. In Railway, set env var `VITE_CONVEX_URL` to that Convex URL.
-3. Deploy this repo to Railway.
+2. Set Convex production env:
+   - `SITE_URL=https://polymockit.davidschmitt.com` (your Railway/custom-domain origin)
+3. Set Railway env:
+   - `VITE_CONVEX_URL=<your convex production url>`
+   - `VITE_SHOO_BASE_URL=https://shoo.dev` (optional if default)
+4. Deploy this repo to Railway.
+
+Push-to-deploy contract:
+
+- Convex owns backend auth audience:
+  - `SITE_URL` (must equal the public web app origin)
+- Railway owns frontend runtime config:
+  - `VITE_CONVEX_URL` (must point to the same Convex deployment)
+  - `VITE_SHOO_BASE_URL` (optional)
 
 ## Useful Commands
 

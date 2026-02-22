@@ -1,13 +1,19 @@
-const configuredOrigin = (process.env.SITE_URL ?? process.env.CONVEX_SITE_URL ?? "").trim().replace(/\/+$/, "");
+const siteUrl = (process.env.SITE_URL ?? "").trim().replace(/\/+$/, "");
+
+if (!siteUrl) {
+  throw new Error(
+    "Missing SITE_URL. Set SITE_URL to your app origin (for example https://polymockit.davidschmitt.com).",
+  );
+}
 
 export default {
   providers: [
     {
       type: "customJwt",
       issuer: "https://shoo.dev",
-      jwks: "https://api.shoo.dev/.well-known/jwks.json",
+      jwks: "https://shoo.dev/.well-known/jwks.json",
       algorithm: "ES256",
-      ...(configuredOrigin ? { applicationID: `origin:${configuredOrigin}` } : {}),
+      applicationID: `origin:${siteUrl}`,
     },
   ],
 };
