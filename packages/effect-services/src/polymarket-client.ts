@@ -1,3 +1,5 @@
+import type { ConvexReactClient } from "convex/react";
+import type { FunctionReference } from "convex/server";
 import { Context, Effect, Layer } from "effect";
 import type { PolymarketHistoryPoint, PolymarketMarket, PolymarketTag } from "./types";
 
@@ -17,38 +19,6 @@ export interface PolymarketClientApi {
 
 export class PolymarketClient extends Context.Tag("PolymarketClient")<PolymarketClient, PolymarketClientApi>() {}
 
-const GAMMA_BASE = "https://gamma-api.polymarket.com";
-
-type RawMarket = {
-  id: string;
-  question: string;
-  slug?: string;
-  outcomes?: string;
-  outcomePrices?: string;
-  clobTokenIds?: string;
-  active: boolean;
-  closed: boolean;
-  endDate?: string;
-  volume?: string;
-  liquidity?: string;
-  icon?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-type RawTag = {
-  id: string | number;
-  label?: string;
-  slug?: string;
-};
-
-type RawHistoryResponse = {
-  history?: Array<{
-    t: number;
-    p: number;
-  }>;
-};
-
 const normalizeError = (error: unknown): Error => {
   if (error instanceof Error) {
     return error;
@@ -56,262 +26,110 @@ const normalizeError = (error: unknown): Error => {
   return new Error("Polymarket request failed.");
 };
 
-const parseStringArray = (input?: string): string[] => {
-  if (!input) {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(input) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
+const asAction = (name: string) => name as unknown as FunctionReference<"action">;
+
+export const makePolymarketClientLayer = (client: ConvexReactClient) => {
+  const cache = new Map<string, { expiresAt: number; value: unknown }>();
+  const inflight = new Map<string, Promise<unknown>>();
+
+  const resolveCached = async <T>(
+    key: string,
+    ttlMs: number,
+    load: () => Promise<T>,
+  ): Promise<T> => {
+    const now = Date.now();
+    const cached = cache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached.value as T;
     }
-    return parsed.map((item) => String(item));
-  } catch {
-    return [];
-  }
-};
 
-const parseNumber = (input?: string): number => {
-  if (!input) {
-    return 0;
-  }
-  const value = Number.parseFloat(input);
-  return Number.isFinite(value) ? value : 0;
-};
+    const running = inflight.get(key);
+    if (running) {
+      return (await running) as T;
+    }
 
-const toMarket = (market: RawMarket): PolymarketMarket => {
-  const outcomeNames = parseStringArray(market.outcomes);
-  const outcomePrices = parseStringArray(market.outcomePrices).map((price) => Number.parseFloat(price));
+    const request = load()
+      .then((value) => {
+        if (ttlMs > 0) {
+          cache.set(key, { expiresAt: Date.now() + ttlMs, value });
+        }
+        return value;
+      })
+      .finally(() => {
+        inflight.delete(key);
+      });
 
-  return {
-    marketId: market.id,
-    question: market.question,
-    slug: market.slug,
-    outcomes: outcomeNames.map((name, index) => ({
-      name,
-      price: Number.isFinite(outcomePrices[index]) ? outcomePrices[index] : 0,
-    })),
-    clobTokenIds: parseStringArray(market.clobTokenIds),
-    active: market.active,
-    closed: market.closed,
-    endDate: market.endDate,
-    volume: parseNumber(market.volume),
-    liquidity: parseNumber(market.liquidity),
-    icon: market.icon,
-    createdAt: market.createdAt,
-    updatedAt: market.updatedAt,
+    inflight.set(key, request);
+    return (await request) as T;
   };
-};
-
-const fetchJson = async <T>(path: string): Promise<T> => {
-  const response = await fetch(`${GAMMA_BASE}${path}`);
-  if (!response.ok) {
-    throw new Error(`Polymarket API error (${response.status})`);
-  }
-  return (await response.json()) as T;
-};
-
-const fetchAbsoluteJson = async <T>(url: string): Promise<T> => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Polymarket API error (${response.status})`);
-  }
-  return (await response.json()) as T;
-};
-
-const downsampleHistory = (
-  points: Array<{
-    timestamp: number;
-    price: number;
-  }>,
-  maxPoints = 220,
-) => {
-  if (points.length <= maxPoints) {
-    return points;
-  }
-  const step = Math.ceil(points.length / maxPoints);
-  return points.filter((_, index) => index % step === 0);
-};
-
-export const makePolymarketClientLayer = () => {
 
   return Layer.succeed(PolymarketClient, {
     listMarkets: (input = {}) =>
       Effect.tryPromise({
-        try: async () => {
-          const cappedLimit = Math.min(Math.max(Math.round(input.limit ?? 60), 10), 200);
-          const search = input.query?.trim().toLowerCase() ?? "";
-          const tagSlug = input.tagSlug?.trim().toLowerCase() ?? "";
-          const mode = input.mode ?? "trending";
-          const pageSize = Math.min(200, cappedLimit);
-          const seen = new Set<string>();
-          const markets: PolymarketMarket[] = [];
-          let offset = 0;
-
-          while (markets.length < cappedLimit) {
-            const params = new URLSearchParams({
-              active: "true",
-              closed: "false",
-              limit: String(pageSize),
-              offset: String(offset),
-            });
-            if (search) {
-              params.set("search", search);
-            }
-            if (tagSlug) {
-              params.set("tag_slug", tagSlug);
-            }
-
-            const page = await fetchJson<RawMarket[]>(`/markets?${params.toString()}`);
-            if (page.length === 0) {
-              break;
-            }
-
-            for (const raw of page) {
-              const market = toMarket(raw);
-              if (seen.has(market.marketId)) {
-                continue;
-              }
-              seen.add(market.marketId);
-              markets.push(market);
-              if (markets.length >= cappedLimit) {
-                break;
-              }
-            }
-
-            offset += page.length;
-            if (page.length < pageSize) {
-              break;
-            }
-          }
-          const normalized = markets.slice(0, cappedLimit);
-          if (mode === "recent") {
-            return normalized.sort((a, b) => {
-              const left = Date.parse(b.createdAt ?? "");
-              const right = Date.parse(a.createdAt ?? "");
-              return (Number.isFinite(left) ? left : 0) - (Number.isFinite(right) ? right : 0);
-            });
-          }
-          return normalized.sort((a, b) => b.volume - a.volume);
-        },
+        try: async () =>
+          await resolveCached(
+            `listMarkets:${JSON.stringify({
+              query: input.query ?? "",
+              tagSlug: input.tagSlug ?? "",
+              mode: input.mode ?? "trending",
+              limit: input.limit ?? 60,
+            })}`,
+            30_000,
+            () =>
+              client.action(asAction("polymarket:listMarkets"), {
+                query: input.query,
+                tagSlug: input.tagSlug,
+                mode: input.mode,
+                limit: input.limit,
+              }),
+          ),
         catch: normalizeError,
       }),
 
     listTags: (input = {}) =>
       Effect.tryPromise({
-        try: async () => {
-          const cappedLimit = Math.min(Math.max(Math.round(input.limit ?? 80), 20), 200);
-          const page = await fetchJson<RawTag[]>(`/tags?limit=${cappedLimit}`);
-          return page
-            .map((tag) => {
-              const slug = String(tag.slug ?? "").trim();
-              const label = String(tag.label ?? slug).trim();
-              if (!slug || !label) {
-                return null;
-              }
-              return {
-                id: String(tag.id),
-                slug,
-                label,
-              };
-            })
-            .filter((tag): tag is PolymarketTag => tag !== null)
-            .sort((a, b) => a.label.localeCompare(b.label));
-        },
+        try: async () =>
+          await resolveCached(`listTags:${input.limit ?? 80}`, 300_000, () =>
+            client.action(asAction("polymarket:listTags"), {
+              limit: input.limit,
+            }),
+          ),
         catch: normalizeError,
       }),
 
     getMarketBySlug: (slug: string) =>
       Effect.tryPromise({
-        try: async () => {
-          const normalizedSlug = slug.trim().toLowerCase();
-          if (!normalizedSlug) {
-            throw new Error("Market slug is required.");
-          }
-
-          const params = new URLSearchParams({
-            slug: normalizedSlug,
-            limit: "1",
-            active: "true",
-            closed: "false",
-          });
-          const page = await fetchJson<RawMarket[]>(`/markets?${params.toString()}`);
-          const exact = page.find((entry) => entry.slug?.toLowerCase() === normalizedSlug) ?? page[0];
-          if (!exact) {
-            throw new Error("No active market found for that slug.");
-          }
-          return toMarket(exact);
-        },
+        try: async () =>
+          await resolveCached(`getMarketBySlug:${slug.trim().toLowerCase()}`, 30_000, () =>
+            client.action(asAction("polymarket:getMarketBySlug"), { slug }),
+          ),
         catch: normalizeError,
       }),
 
     getMarket: (marketId: string) =>
       Effect.tryPromise({
-        try: async () => {
-          const normalizedMarketId = marketId.trim();
-          if (!normalizedMarketId) {
-            throw new Error("Market ID is required.");
-          }
-          const data = await fetchJson<RawMarket>(`/markets/${encodeURIComponent(normalizedMarketId)}`);
-          return toMarket(data);
-        },
+        try: async () =>
+          await resolveCached(`getMarket:${marketId.trim()}`, 20_000, () =>
+            client.action(asAction("polymarket:getMarket"), { marketId }),
+          ),
         catch: normalizeError,
       }),
 
     getOutcomePrice: (marketId: string, outcome: string) =>
       Effect.tryPromise({
-        try: async () => {
-          const normalizedMarketId = marketId.trim();
-          const normalizedOutcome = outcome.trim().toLowerCase();
-          if (!normalizedMarketId || !normalizedOutcome) {
-            throw new Error("Market ID and outcome are required.");
-          }
-
-          const data = await fetchJson<RawMarket>(`/markets/${encodeURIComponent(normalizedMarketId)}`);
-          const market = toMarket(data);
-          const match = market.outcomes.find((entry) => entry.name.toLowerCase() === normalizedOutcome);
-          return match?.price ?? null;
-        },
+        try: async () =>
+          await resolveCached(`getOutcomePrice:${marketId.trim()}:${outcome.trim().toLowerCase()}`, 2_500, () =>
+            client.action(asAction("polymarket:getOutcomePrice"), { marketId, outcome }),
+          ),
         catch: normalizeError,
       }),
 
     getOutcomeHistory: (marketId: string, outcome: string) =>
       Effect.tryPromise({
-        try: async () => {
-          const normalizedMarketId = marketId.trim();
-          const normalizedOutcome = outcome.trim().toLowerCase();
-          if (!normalizedMarketId || !normalizedOutcome) {
-            throw new Error("Market ID and outcome are required.");
-          }
-
-          const rawMarket = await fetchJson<RawMarket>(`/markets/${encodeURIComponent(normalizedMarketId)}`);
-          const market = toMarket(rawMarket);
-          const outcomeIndex = market.outcomes.findIndex((entry) => entry.name.toLowerCase() === normalizedOutcome);
-          const tokenId = market.clobTokenIds[outcomeIndex] ?? market.clobTokenIds[0];
-
-          if (!tokenId) {
-            return [];
-          }
-
-          const params = new URLSearchParams({
-            market: tokenId,
-            interval: "max",
-            fidelity: "60",
-          });
-
-          const historyResponse = await fetchAbsoluteJson<RawHistoryResponse>(
-            `https://clob.polymarket.com/prices-history?${params.toString()}`,
-          );
-          const history = Array.isArray(historyResponse.history) ? historyResponse.history : [];
-          return downsampleHistory(
-            history
-              .filter((entry) => Number.isFinite(entry.t) && Number.isFinite(entry.p))
-              .map((entry) => ({
-                timestamp: Math.floor(entry.t * 1000),
-                price: entry.p,
-              })),
-          );
-        },
+        try: async () =>
+          await resolveCached(`getOutcomeHistory:${marketId.trim()}:${outcome.trim().toLowerCase()}`, 300_000, () =>
+            client.action(asAction("polymarket:getOutcomeHistory"), { marketId, outcome }),
+          ),
         catch: normalizeError,
       }),
   });
