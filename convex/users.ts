@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { normalizeDisplayName, normalizeUsername, randomAccentColor, requireAuthUser } from "./lib/auth";
 
-export const current = query({
+export const current = mutation({
   args: {},
   handler: async (ctx) => {
     const user = await requireAuthUser(ctx);

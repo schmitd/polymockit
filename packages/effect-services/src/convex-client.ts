@@ -39,7 +39,7 @@ export const makeFantasyLeagueClientLayer = (client: ConvexReactClient) => {
     currentUser: () =>
       Effect.tryPromise({
         try: async () => {
-          return await client.query(asQuery("users:current"), {});
+          return await client.mutation(asMutation("users:current"), {});
         },
         catch: normalizeError,
       }),
