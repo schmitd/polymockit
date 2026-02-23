@@ -46,6 +46,7 @@ export default defineSchema({
     marketId: v.string(),
     marketSlug: v.optional(v.string()),
     marketQuestion: v.string(),
+    side: v.optional(v.union(v.literal("buy"), v.literal("sell"))),
     outcome: v.string(),
     price: v.number(),
     stake: v.number(),

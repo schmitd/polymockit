@@ -476,6 +476,10 @@ small {
   font-family: "IBM Plex Mono", monospace;
 }
 
+.compact-note {
+  font-size: 0.78rem;
+}
+
 .market-card h3 {
   font-size: 0.95rem;
   margin-bottom: 0.45rem;
@@ -491,6 +495,12 @@ small {
   display: flex;
   justify-content: space-between;
   gap: 0.7rem;
+}
+
+.cashout-button {
+  margin-top: 0.25rem;
+  padding: 0.42rem 0.58rem;
+  font-size: 0.74rem;
 }
 
 .market-static {

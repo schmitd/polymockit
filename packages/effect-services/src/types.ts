@@ -52,6 +52,7 @@ export interface BetRow {
   marketId: string;
   marketSlug?: string;
   marketQuestion: string;
+  side?: "buy" | "sell";
   outcome: string;
   price: number;
   stake: number;

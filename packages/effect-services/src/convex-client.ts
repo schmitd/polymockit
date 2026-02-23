@@ -19,6 +19,11 @@ export interface FantasyLeagueClientApi {
     price: number;
     stake: number;
   }) => Effect.Effect<{ ok: true; shares: number; remainingCash: number }, Error>;
+  cashOutPosition: (input: {
+    leagueId: string;
+    positionId: string;
+    price: number;
+  }) => Effect.Effect<{ ok: true; payout: number; realizedPnl: number; remainingCash: number }, Error>;
 }
 
 export class FantasyLeagueClient extends Context.Tag("FantasyLeagueClient")<FantasyLeagueClient, FantasyLeagueClientApi>() {}
@@ -90,6 +95,14 @@ export const makeFantasyLeagueClientLayer = (client: ConvexReactClient) => {
       Effect.tryPromise({
         try: async () => {
           return await client.mutation(asMutation("leagues:placeBet"), input);
+        },
+        catch: normalizeError,
+      }),
+
+    cashOutPosition: (input) =>
+      Effect.tryPromise({
+        try: async () => {
+          return await client.mutation(asMutation("leagues:cashOutPosition"), input);
         },
         catch: normalizeError,
       }),

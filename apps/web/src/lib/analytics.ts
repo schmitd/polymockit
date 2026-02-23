@@ -22,7 +22,7 @@ export function buildLeagueAnalytics(
     invested: member.invested,
     positionValue: 0,
     equity: member.cash,
-    pnl: 0,
+    pnl: currency(member.cash - leagueDetail.league.startingBankroll),
   }));
 
   const memberByUserId = new Map(members.map((member) => [member.userId, member]));

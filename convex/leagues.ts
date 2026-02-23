@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireAuthUser } from "./lib/auth";
 import { currency, makeInviteCode, quantity, requireLeagueMember } from "./lib/league";
+import { settleShareSale } from "./lib/positions";
 
 async function uniqueLeagueCode(ctx: any): Promise<string> {
   for (let i = 0; i < 8; i += 1) {
@@ -265,6 +266,7 @@ export const placeBet = mutation({
       marketId,
       marketSlug: args.marketSlug,
       marketQuestion,
+      side: "buy",
       outcome,
       price: args.price,
       stake,
@@ -311,6 +313,88 @@ export const placeBet = mutation({
       ok: true,
       shares,
       remainingCash: currency(membership.cash - stake),
+    };
+  },
+});
+
+export const cashOutPosition = mutation({
+  args: {
+    leagueId: v.id("leagues"),
+    positionId: v.id("positions"),
+    price: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireAuthUser(ctx);
+    const league = await ctx.db.get(args.leagueId);
+
+    if (!league) {
+      throw new ConvexError("League not found.");
+    }
+
+    const membership = await requireLeagueMember(ctx, league._id, user._id);
+    const position = await ctx.db.get(args.positionId);
+
+    if (!position || position.leagueId !== league._id || position.userId !== user._id) {
+      throw new ConvexError("Position not found.");
+    }
+
+    if (!Number.isFinite(args.price) || args.price < 0 || args.price > 1) {
+      throw new ConvexError("Price must be between 0 and 1.");
+    }
+
+    let sale: ReturnType<typeof settleShareSale>;
+    try {
+      sale = settleShareSale({
+        shares: position.shares,
+        totalCost: position.totalCost,
+        sharesToSell: position.shares,
+        price: args.price,
+      });
+    } catch (saleError) {
+      if (saleError instanceof Error) {
+        throw new ConvexError(saleError.message);
+      }
+      throw new ConvexError("Unable to cash out this position.");
+    }
+
+    const now = Date.now();
+    const remainingCash = currency(membership.cash + sale.payout);
+
+    await ctx.db.patch(membership._id, {
+      cash: remainingCash,
+    });
+
+    if (sale.remainingShares === 0) {
+      await ctx.db.delete(position._id);
+    } else {
+      await ctx.db.patch(position._id, {
+        shares: sale.remainingShares,
+        totalCost: sale.remainingCost,
+        averagePrice: sale.remainingShares === 0 ? 0 : quantity(sale.remainingCost / sale.remainingShares),
+        lastPrice: args.price,
+        updatedAt: now,
+      });
+    }
+
+    await ctx.db.insert("bets", {
+      leagueId: league._id,
+      userId: user._id,
+      marketId: position.marketId,
+      marketSlug: position.marketSlug,
+      marketQuestion: position.marketQuestion,
+      side: "sell",
+      outcome: position.outcome,
+      price: args.price,
+      stake: sale.payout,
+      shares: sale.sharesSold,
+      createdAt: now,
+    });
+
+    return {
+      ok: true,
+      payout: sale.payout,
+      realizedPnl: sale.realizedPnl,
+      remainingCash,
     };
   },
 });

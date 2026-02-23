@@ -132,6 +132,12 @@ export default function App() {
     () => markets.find((market) => market.marketId === selectedMarketId) ?? null,
     [markets, selectedMarketId],
   );
+  const myPositions = useMemo(() => {
+    if (!leagueDetail) {
+      return [];
+    }
+    return positions.filter((position) => position.userId === leagueDetail.viewer.userId);
+  }, [leagueDetail, positions]);
   const historyStats = useMemo(() => {
     if (marketHistory.length === 0) {
       return null;
@@ -715,6 +721,58 @@ export default function App() {
     }
   };
 
+  const handleCashOutPosition = async (position: EnrichedPosition) => {
+    if (!selectedLeague) {
+      setError("Choose a league first.");
+      return;
+    }
+
+    clearBanner();
+    const busyToken = `cashOut:${position._id}`;
+    setBusy(busyToken);
+
+    try {
+      const livePrice = await runAppEffect(
+        Effect.gen(function* () {
+          const polymarket = yield* PolymarketClient;
+          return yield* polymarket.getOutcomePrice(position.marketId, position.outcome);
+        }),
+      );
+
+      if (livePrice === null) {
+        throw new Error("Could not fetch a live quote for this position.");
+      }
+
+      const sold = await runAppEffect(
+        Effect.gen(function* () {
+          const api = yield* FantasyLeagueClient;
+          return yield* api.cashOutPosition({
+            leagueId: selectedLeague.leagueId,
+            positionId: position._id,
+            price: livePrice,
+          });
+        }),
+      );
+
+      const detail = await runAppEffect(
+        Effect.gen(function* () {
+          const api = yield* FantasyLeagueClient;
+          return yield* api.leagueDetail(selectedLeague.leagueId);
+        }),
+      );
+
+      setLeagueDetail(detail);
+      await Promise.all([hydrateLeagueAnalytics(detail), hydrateLeagueMarkets(detail)]);
+      setNotice(
+        `Cashed out ${position.outcome} for ${formatCurrency(sold.payout)} (${sold.realizedPnl >= 0 ? "+" : ""}${formatCurrency(sold.realizedPnl)}).`,
+      );
+    } catch (cashOutError) {
+      setError(extractErrorMessage(cashOutError));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (booting) {
     return (
       <div className="boot-screen">
@@ -1105,13 +1163,14 @@ export default function App() {
                     {busy === "placeBet" ? "Submitting..." : "Buy Position"}
                   </button>
                 </form>
+                <p className="muted compact-note">Returns are added to cash only when you cash out.</p>
               </section>
 
               <section>
                 <h3>Open Positions</h3>
                 <div className="positions-list">
-                  {positions.length === 0 ? <p className="muted">No positions yet.</p> : null}
-                  {positions.slice(0, MAX_POSITIONS_ROWS).map((position) => (
+                  {myPositions.length === 0 ? <p className="muted">No positions yet.</p> : null}
+                  {myPositions.slice(0, MAX_POSITIONS_ROWS).map((position) => (
                     <div key={position._id} className="position-row">
                       <div>
                         <strong>{shortMarket(position.marketQuestion)}</strong>
@@ -1125,11 +1184,19 @@ export default function App() {
                           {position.unrealizedPnl >= 0 ? "+" : ""}
                           {formatCurrency(position.unrealizedPnl)}
                         </span>
+                        <button
+                          type="button"
+                          className="secondary cashout-button"
+                          onClick={() => void handleCashOutPosition(position)}
+                          disabled={busy === `cashOut:${position._id}`}
+                        >
+                          {busy === `cashOut:${position._id}` ? "Cashing out..." : "Cash Out"}
+                        </button>
                       </div>
                     </div>
                   ))}
-                  {positions.length > MAX_POSITIONS_ROWS ? (
-                    <p className="muted">Showing {MAX_POSITIONS_ROWS} of {positions.length} positions.</p>
+                  {myPositions.length > MAX_POSITIONS_ROWS ? (
+                    <p className="muted">Showing {MAX_POSITIONS_ROWS} of {myPositions.length} positions.</p>
                   ) : null}
                 </div>
               </section>
@@ -1142,11 +1209,12 @@ export default function App() {
                       <div>
                         <strong>{shortMarket(bet.marketQuestion)}</strong>
                         <small>
-                          {bet.displayName} bought {bet.outcome} at {formatPercent(bet.price)}
+                          {bet.displayName} {bet.side === "sell" ? "sold" : "bought"} {bet.outcome} at{" "}
+                          {formatPercent(bet.price)}
                         </small>
                       </div>
                       <div className="position-metrics">
-                        <span>{formatCurrency(bet.stake)}</span>
+                        <span>{bet.side === "sell" ? `+${formatCurrency(bet.stake)}` : formatCurrency(bet.stake)}</span>
                         <small>{formatDateTime(bet.createdAt)}</small>
                       </div>
                     </div>
