@@ -11,7 +11,7 @@ import type {
 import { FantasyLeagueClient, PolymarketClient } from "@polymockit/effect-services";
 import { useConvexAuth } from "convex/react";
 import { Effect } from "effect";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRuntimeConfigError, runAppEffect } from "./effect/runtime";
 import { signIn, signOut } from "./shoo";
 import {
@@ -121,6 +121,7 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null);
   const [isRefreshingLeague, setIsRefreshingLeague] = useState(true);
   const [isRefreshingMarkets, setIsRefreshingMarkets] = useState(false);
+  const knownMarketIdsRef = useRef<Set<string>>(new Set());
 
   const selectedLeague = useMemo(
     () => leagues.find((league) => league.leagueId === selectedLeagueId) ?? null,
@@ -264,6 +265,51 @@ export default function App() {
     setPositions(next.positions);
   }, []);
 
+  const hydrateLeagueMarkets = useCallback(
+    async (detail: LeagueDetail) => {
+      const marketIdsInLeague = Array.from(new Set(detail.positions.map((position) => position.marketId)));
+      const missingMarketIds = marketIdsInLeague.filter((marketId) => !knownMarketIdsRef.current.has(marketId));
+      if (missingMarketIds.length === 0) {
+        return;
+      }
+
+      const fetched = await runAppEffect(
+        Effect.gen(function* () {
+          const polymarket = yield* PolymarketClient;
+          return yield* Effect.forEach(
+            missingMarketIds,
+            (marketId) =>
+              Effect.catchAll(
+                polymarket.getMarket(marketId),
+                () => Effect.succeed<PolymarketMarket | null>(null),
+              ),
+            { concurrency: 4 },
+          );
+        }),
+      );
+
+      const additions = fetched.filter((entry): entry is PolymarketMarket => entry !== null);
+      if (additions.length === 0) {
+        return;
+      }
+
+      setMarkets((current) => {
+        const byId = new Map(current.map((market) => [market.marketId, market]));
+        additions.forEach((market) => {
+          if (!byId.has(market.marketId)) {
+            byId.set(market.marketId, market);
+          }
+        });
+        return Array.from(byId.values());
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    knownMarketIdsRef.current = new Set(markets.map((market) => market.marketId));
+  }, [markets]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -359,7 +405,7 @@ export default function App() {
         );
         if (!cancelled) {
           setLeagueDetail(detail);
-          await hydrateLeagueAnalytics(detail);
+          await Promise.all([hydrateLeagueAnalytics(detail), hydrateLeagueMarkets(detail)]);
         }
       } catch (liveError) {
         if (!cancelled) {
@@ -380,7 +426,33 @@ export default function App() {
       cancelled = true;
       clearInterval(handle);
     };
-  }, [hydrateLeagueAnalytics, selectedLeagueId, session]);
+  }, [hydrateLeagueAnalytics, hydrateLeagueMarkets, selectedLeagueId, session]);
+
+  useEffect(() => {
+    if (!leagueDetail) {
+      return;
+    }
+    let cancelled = false;
+
+    const refreshQuotes = async () => {
+      try {
+        await hydrateLeagueAnalytics(leagueDetail);
+      } catch (quoteError) {
+        if (!cancelled) {
+          setError(extractErrorMessage(quoteError));
+        }
+      }
+    };
+
+    const handle = setInterval(() => {
+      void refreshQuotes();
+    }, 8_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(handle);
+    };
+  }, [hydrateLeagueAnalytics, leagueDetail]);
 
   useEffect(() => {
     if (!session) {
