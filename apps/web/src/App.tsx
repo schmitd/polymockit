@@ -820,7 +820,7 @@ export default function App() {
             onBackToDesk={() => navigateTo("desk")}
           />
         ) : (
-          <main className="grid grid-cols-1 gap-3 p-3 sm:p-6">
+          <main className="grid grid-cols-1 gap-3 p-3 sm:p-6 xl:grid-cols-[1.45fr_1fr]">
             <MarketFeedPanel
               feedMode={feedMode}
               onFeedModeChange={handleFeedModeChange}
