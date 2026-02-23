@@ -865,18 +865,6 @@ export default function App() {
                 </button>
               </div>
 
-              <form className="slug-inline" onSubmit={handleOpenSlug}>
-                <input
-                  value={slugInput}
-                  onChange={(event) => setSlugInput(event.target.value)}
-                  placeholder="Open by slug..."
-                  aria-label="Open market by slug"
-                />
-                <button type="submit" disabled={isOpeningSlug || !slugInput.trim()}>
-                  {isOpeningSlug ? "..." : "Open"}
-                </button>
-              </form>
-
               <div className="tag-filter-inline">
                 <input
                   value={tagSearch}
@@ -1001,10 +989,21 @@ export default function App() {
 
               <section>
                 <h3>Place Fantasy Bet</h3>
+                <form className="slug-inline slug-inline-right" onSubmit={handleOpenSlug}>
+                  <input
+                    value={slugInput}
+                    onChange={(event) => setSlugInput(event.target.value)}
+                    placeholder="Open market by slug..."
+                    aria-label="Open market by slug"
+                  />
+                  <button type="submit" disabled={isOpeningSlug || !slugInput.trim()}>
+                    {isOpeningSlug ? "..." : "Open"}
+                  </button>
+                </form>
                 <form className="stack compact" onSubmit={handlePlaceBet}>
                   <label>
                     Market
-                    <input value={selectedMarket?.question ?? "Choose a market on the left"} readOnly />
+                    <p className="market-static">{selectedMarket?.question ?? "Choose a market on the left"}</p>
                   </label>
 
                   <label>
