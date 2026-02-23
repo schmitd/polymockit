@@ -77,7 +77,7 @@ export function LeagueSidebar({
   maxRecentBetsRows,
 }: LeagueSidebarProps) {
   return (
-    <aside className={`${glassClass} flex h-full min-h-0 flex-col gap-3 overflow-auto rounded-2xl p-3.5 pr-3`}>
+    <aside className={`${glassClass} flex flex-col gap-3 rounded-2xl p-3.5`}>
       <section className="grid gap-2 rounded-[0.85rem] bg-[rgba(8,16,23,0.64)] p-2.5">
         <div className="flex items-center justify-between gap-2">
           <h3 className="m-0 leading-[1.16]">Market History</h3>

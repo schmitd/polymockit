@@ -46,7 +46,7 @@ export function MarketFeedPanel({
   visibleTags,
 }: MarketFeedPanelProps) {
   return (
-    <section className={`${glassClass} flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-2xl p-3.5`}>
+    <section className={`${glassClass} flex flex-col gap-3 rounded-2xl p-3.5`}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="m-0 leading-[1.16]">Polymarket Feed</h2>
@@ -89,8 +89,8 @@ export function MarketFeedPanel({
         </div>
       </div>
 
-      <div className="min-h-10 overflow-x-auto overflow-y-hidden py-1">
-        <div className="flex w-max min-w-full items-center gap-1.5 whitespace-nowrap">
+      <div className="min-h-10 py-1">
+        <div className="flex flex-wrap items-center gap-1.5">
         {isLoadingTags ? <span className="shrink-0 text-[var(--muted)]">Loading tags...</span> : null}
         {!isLoadingTags && visibleTags.length === 0 ? (
           <span className="shrink-0 text-[var(--muted)]">No active tags for this feed.</span>
@@ -100,7 +100,7 @@ export function MarketFeedPanel({
             <button
               type="button"
               key={tag.id}
-              className={`shrink-0 rounded-full border px-2.5 py-1 text-[0.75rem] whitespace-nowrap ${
+              className={`rounded-full border px-2.5 py-1 text-[0.75rem] whitespace-nowrap ${
                 selectedTagSlug === tag.slug
                   ? "border-[color-mix(in_srgb,var(--accent)_64%,transparent)] bg-[var(--accent-soft)] text-[var(--ink)]"
                   : "border-[var(--line)] bg-[rgba(10,19,28,0.76)] text-[var(--muted)]"
@@ -114,7 +114,7 @@ export function MarketFeedPanel({
         </div>
       </div>
 
-      <div className="grid min-h-0 gap-2 overflow-y-auto pr-1">
+      <div className="grid gap-2">
         {markets.slice(0, maxMarketRows).map((market) => (
           <button
             type="button"

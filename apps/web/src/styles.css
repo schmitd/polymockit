@@ -29,7 +29,8 @@ body,
 body {
   font-family: "Space Grotesk", sans-serif;
   color: var(--ink);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(90rem 45rem at -20% -15%, rgba(42, 212, 183, 0.22), transparent 58%),
     radial-gradient(80rem 42rem at 120% 10%, rgba(239, 184, 16, 0.12), transparent 62%),

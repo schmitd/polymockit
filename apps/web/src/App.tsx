@@ -772,7 +772,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex min-h-screen flex-col">
       <DashboardHeader
         currentRoute={currentRoute}
         onNavigate={navigateTo}
@@ -792,7 +792,7 @@ export default function App() {
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1">
+      <div className="flex-1">
         {currentRoute === "leagues" ? (
           <LeagueSetupView
             createLeagueForm={createLeagueForm}
@@ -820,7 +820,7 @@ export default function App() {
             onBackToDesk={() => navigateTo("desk")}
           />
         ) : (
-          <main className="grid h-full min-h-0 grid-cols-1 gap-3 p-3 sm:p-6 xl:grid-cols-[1.45fr_1fr]">
+          <main className="grid grid-cols-1 gap-3 p-3 sm:p-6">
             <MarketFeedPanel
               feedMode={feedMode}
               onFeedModeChange={handleFeedModeChange}
