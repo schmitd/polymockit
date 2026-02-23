@@ -13,6 +13,7 @@ import type * as http from "../http.js";
 import type * as leagues from "../leagues.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_league from "../lib/league.js";
+import type * as lib_positions from "../lib/positions.js";
 import type * as polymarket from "../polymarket.js";
 import type * as users from "../users.js";
 
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   leagues: typeof leagues;
   "lib/auth": typeof lib_auth;
   "lib/league": typeof lib_league;
+  "lib/positions": typeof lib_positions;
   polymarket: typeof polymarket;
   users: typeof users;
 }>;
