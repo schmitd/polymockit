@@ -88,6 +88,7 @@ export interface PolymarketMarket {
   marketId: string;
   question: string;
   slug?: string;
+  tagSlugs: string[];
   outcomes: PolymarketOutcome[];
   clobTokenIds: string[];
   active: boolean;

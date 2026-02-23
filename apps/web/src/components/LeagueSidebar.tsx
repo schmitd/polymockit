@@ -41,6 +41,17 @@ interface LeagueSidebarProps {
   maxRecentBetsRows: number;
 }
 
+const glassClass =
+  "border border-[var(--line)] shadow-[var(--shadow)] backdrop-blur-[12px] bg-[linear-gradient(160deg,rgba(16,28,39,0.84),rgba(11,20,28,0.74))]";
+const statusPillClass =
+  "rounded-full border border-[var(--line)] bg-[rgba(18,35,46,0.74)] px-2 py-0.5 text-[0.78rem] text-[var(--muted)] font-['IBM_Plex_Mono']";
+const buttonPrimaryClass =
+  "rounded-[0.8rem] border-0 bg-[linear-gradient(135deg,#28cfae_0%,#12a6bc_100%)] px-4 py-2.5 font-bold text-[#022018] transition duration-150 hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65";
+const buttonSecondaryClass =
+  "rounded-[0.8rem] border border-[var(--line)] bg-[rgba(11,20,28,0.58)] px-4 py-2.5 font-bold text-[var(--ink)] transition duration-150 hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65";
+const inputClass =
+  "w-full rounded-[0.7rem] border border-[var(--line)] bg-[rgba(7,14,19,0.74)] px-3 py-2.5 text-[var(--ink)]";
+
 export function LeagueSidebar({
   selectedLeague,
   leagueDetail,
@@ -66,17 +77,17 @@ export function LeagueSidebar({
   maxRecentBetsRows,
 }: LeagueSidebarProps) {
   return (
-    <aside className="panel glass league-panel">
-      <section className="market-history side-history">
-        <div className="market-history-head">
-          <h3>Market History</h3>
-          {selectedOutcome ? <span className="status-pill">{selectedOutcome}</span> : null}
+    <aside className={`${glassClass} flex h-full min-h-0 flex-col gap-3 overflow-auto rounded-2xl p-3.5 pr-3`}>
+      <section className="grid gap-2 rounded-[0.85rem] bg-[rgba(8,16,23,0.64)] p-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="m-0 leading-[1.16]">Market History</h3>
+          {selectedOutcome ? <span className={statusPillClass}>{selectedOutcome}</span> : null}
         </div>
-        {selectedMarket ? <p className="muted">{shortMarket(selectedMarket.question)}</p> : null}
-        <div className="history-frame">
+        {selectedMarket ? <p className="m-0 text-[var(--muted)]">{shortMarket(selectedMarket.question)}</p> : null}
+        <div className="h-[6.35rem]">
           <PriceHistoryChart points={marketHistory} />
         </div>
-        <div className="history-stats">
+        <div className="grid grid-cols-3 gap-1.5 font-['IBM_Plex_Mono'] text-[0.72rem] text-[var(--muted)]">
           <span>Latest {historyStats ? formatPercent(historyStats.latest) : "--"}</span>
           <span>Low {historyStats ? formatPercent(historyStats.low) : "--"}</span>
           <span>High {historyStats ? formatPercent(historyStats.high) : "--"}</span>
@@ -85,28 +96,31 @@ export function LeagueSidebar({
 
       {selectedLeague && leagueDetail ? (
         <>
-          <div className="panel-head">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <h2>{selectedLeague.name}</h2>
-              <p className="muted">Invite code {leagueDetail.league.code}</p>
+              <h2 className="m-0 leading-[1.16]">{selectedLeague.name}</h2>
+              <p className="m-0 text-[var(--muted)]">Invite code {leagueDetail.league.code}</p>
             </div>
-            <span className="status-pill">{isRefreshingLeague ? "Syncing" : "Live"}</span>
+            <span className={statusPillClass}>{isRefreshingLeague ? "Syncing" : "Live"}</span>
           </div>
 
-          <section>
-            <h3>Leaderboard</h3>
-            <div className="leaderboard">
-              {standings.slice(0, maxLeaderboardRows).map((entry, index) => (
-                <div key={entry.userId} className="leader-row">
+          <section className="grid gap-2">
+            <h3 className="m-0 leading-[1.16]">Leaderboard</h3>
+            <div className="grid gap-2 overflow-hidden">
+              {standings.slice(0, maxLeaderboardRows).map((entry, index, rows) => (
+                <div
+                  key={entry.userId}
+                  className={`flex justify-between gap-3 py-2 ${index < rows.length - 1 ? "border-b border-[var(--line)]/50" : ""}`}
+                >
                   <div>
-                    <strong>
+                    <strong className="block">
                       #{index + 1} {entry.displayName}
                     </strong>
-                    <small>@{entry.username}</small>
+                    <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">@{entry.username}</small>
                   </div>
-                  <div className="leader-metrics">
+                  <div className="grid gap-0.5 text-right font-['IBM_Plex_Mono'] text-[0.78rem]">
                     <span>{formatCurrency(entry.equity)} equity</span>
-                    <span className={entry.pnl >= 0 ? "pos" : "neg"}>
+                    <span className={entry.pnl >= 0 ? "text-[#77f5b0]" : "text-[#ff8e9a]"}>
                       {entry.pnl >= 0 ? "+" : ""}
                       {formatCurrency(entry.pnl)}
                     </span>
@@ -114,81 +128,81 @@ export function LeagueSidebar({
                 </div>
               ))}
               {standings.length > maxLeaderboardRows ? (
-                <p className="muted">Showing top {maxLeaderboardRows} of {standings.length} members.</p>
+                <p className="m-0 text-[var(--muted)]">Showing top {maxLeaderboardRows} of {standings.length} members.</p>
               ) : null}
             </div>
           </section>
-
-          <section>
-            <h3>Place Fantasy Bet</h3>
-            <form className="slug-inline slug-inline-right" onSubmit={onOpenSlug}>
-              <input
-                value={slugInput}
-                onChange={(event) => onSlugInputChange(event.target.value)}
-                placeholder="Open market by slug..."
-                aria-label="Open market by slug"
-              />
-              <button type="submit" disabled={isOpeningSlug || !slugInput.trim()}>
-                {isOpeningSlug ? "..." : "Open"}
-              </button>
-            </form>
-            <form className="stack compact" onSubmit={onPlaceBet}>
-              <label>
-                Market
-                <p className="market-static">{selectedMarket?.question ?? "Choose a market on the left"}</p>
-              </label>
-
-              <label>
-                Outcome
-                <select value={selectedOutcome ?? ""} onChange={(event) => onSelectedOutcomeChange(event.target.value)}>
+          <form className="mb-1 grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto]" onSubmit={onOpenSlug}>
+            <input
+              className={inputClass}
+              value={slugInput}
+              onChange={(event) => onSlugInputChange(event.target.value)}
+              placeholder="Open market by slug..."
+              aria-label="Open market by slug"
+            />
+            <button type="submit" className={buttonPrimaryClass} disabled={isOpeningSlug || !slugInput.trim()}>
+              {isOpeningSlug ? "..." : "Open"}
+            </button>
+          </form>
+          <section className="grid gap-2">
+            <form className="grid gap-2" onSubmit={onPlaceBet}>
+              <h3 className="m-0 leading-[1.16]">Place Bet: {selectedMarket?.question ?? "Choose a market on the left"}</h3>
+              <div className="grid items-center gap-2 xl:grid-cols-[auto_minmax(12rem,1fr)_auto_minmax(7rem,9rem)]">
+                <label className="text-[0.88rem] text-[var(--muted)]">Outcome</label>
+                <select
+                  className={inputClass}
+                  value={selectedOutcome ?? ""}
+                  onChange={(event) => onSelectedOutcomeChange(event.target.value)}
+                >
                   {(selectedMarket?.outcomes ?? []).map((outcome) => (
                     <option value={outcome.name} key={`${selectedMarket?.marketId}-${outcome.name}`}>
                       {outcome.name} ({formatPercent(outcome.price)})
                     </option>
                   ))}
                 </select>
-              </label>
-
-              <label>
-                Stake
+                <label className="text-[0.88rem] text-[var(--muted)]">Stake</label>
                 <input
                   required
+                  className={inputClass}
                   type="number"
                   min={1}
                   step={1}
                   value={stakeInput}
                   onChange={(event) => onStakeInputChange(event.target.value)}
                 />
-              </label>
+              </div>
 
-              <button type="submit" disabled={busy === "placeBet"}>
+              <button type="submit" className={`${buttonPrimaryClass} w-1/2 justify-right`} disabled={busy === "placeBet"}>
                 {busy === "placeBet" ? "Submitting..." : "Buy Position"}
               </button>
             </form>
-            <p className="muted compact-note">Returns are added to cash only when you cash out.</p>
+            <p className="m-0 text-[0.78rem] text-[var(--muted)]">Returns are added to cash only when you cash out.</p>
           </section>
 
-          <section>
-            <h3>Open Positions</h3>
-            <div className="positions-list">
-              {myPositions.length === 0 ? <p className="muted">No positions yet.</p> : null}
+          <section className="grid gap-2">
+            <h3 className="m-0 leading-[1.16]">Open Positions</h3>
+            <div className="grid gap-2 overflow-hidden">
+              {myPositions.length === 0 ? <p className="m-0 text-[var(--muted)]">No positions yet.</p> : null}
               {myPositions.slice(0, maxPositionsRows).map((position) => (
-                <div key={position._id} className="position-row">
+                <div
+                  key={position._id}
+                  className="flex justify-between gap-3 rounded-[0.82rem] border border-[var(--line)] bg-[rgba(8,16,23,0.72)] p-3"
+                >
                   <div>
-                    <strong>{shortMarket(position.marketQuestion)}</strong>
-                    <small>
+                    <strong className="block">{shortMarket(position.marketQuestion)}</strong>
+                    <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">
                       {position.outcome} | {position.shares.toFixed(2)} shares
                     </small>
                   </div>
-                  <div className="position-metrics">
+                  <div className="grid gap-0.5 text-right font-['IBM_Plex_Mono'] text-[0.78rem]">
                     <span>{formatCurrency(position.currentValue)}</span>
-                    <span className={position.unrealizedPnl >= 0 ? "pos" : "neg"}>
+                    <span className={position.unrealizedPnl >= 0 ? "text-[#77f5b0]" : "text-[#ff8e9a]"}>
                       {position.unrealizedPnl >= 0 ? "+" : ""}
                       {formatCurrency(position.unrealizedPnl)}
                     </span>
                     <button
                       type="button"
-                      className="secondary cashout-button"
+                      className={`${buttonSecondaryClass} mt-1 px-2.5 py-1.5 text-[0.74rem]`}
                       onClick={() => onCashOutPosition(position)}
                       disabled={busy === `cashOut:${position._id}`}
                     >
@@ -198,39 +212,43 @@ export function LeagueSidebar({
                 </div>
               ))}
               {myPositions.length > maxPositionsRows ? (
-                <p className="muted">Showing {maxPositionsRows} of {myPositions.length} positions.</p>
+                <p className="m-0 text-[var(--muted)]">Showing {maxPositionsRows} of {myPositions.length} positions.</p>
               ) : null}
             </div>
           </section>
 
-          <section>
-            <h3>Recent Bets</h3>
-            <div className="positions-list">
-              {leagueDetail.recentBets.slice(0, maxRecentBetsRows).map((bet) => (
-                <div key={bet._id} className="position-row">
+          <section className="grid gap-2">
+            <h3 className="m-0 leading-[1.16]">Recent Bets</h3>
+            <div className="grid gap-2 overflow-hidden">
+              {leagueDetail.recentBets.slice(0, maxRecentBetsRows).map((bet, index, rows) => (
+                <div
+                  key={bet._id}
+                  className={`flex justify-between gap-3 py-2 ${index < rows.length - 1 ? "border-b border-[var(--line)]/50" : ""}`}
+                >
                   <div>
-                    <strong>{shortMarket(bet.marketQuestion)}</strong>
-                    <small>
-                      {bet.displayName} {bet.side === "sell" ? "sold" : "bought"} {bet.outcome} at{" "}
-                      {formatPercent(bet.price)}
+                    <strong className="block">{shortMarket(bet.marketQuestion)}</strong>
+                    <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">
+                      {bet.displayName} {bet.side === "sell" ? "sold" : "bought"} {bet.outcome} at {formatPercent(bet.price)}
                     </small>
                   </div>
-                  <div className="position-metrics">
+                  <div className="grid gap-0.5 text-right font-['IBM_Plex_Mono'] text-[0.78rem]">
                     <span>{bet.side === "sell" ? `+${formatCurrency(bet.stake)}` : formatCurrency(bet.stake)}</span>
-                    <small>{formatDateTime(bet.createdAt)}</small>
+                    <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">{formatDateTime(bet.createdAt)}</small>
                   </div>
                 </div>
               ))}
               {leagueDetail.recentBets.length > maxRecentBetsRows ? (
-                <p className="muted">Showing {maxRecentBetsRows} of {leagueDetail.recentBets.length} recent bets.</p>
+                <p className="m-0 text-[var(--muted)]">
+                  Showing {maxRecentBetsRows} of {leagueDetail.recentBets.length} recent bets.
+                </p>
               ) : null}
             </div>
           </section>
         </>
       ) : (
-        <div className="empty-state">
-          <h2>No league selected</h2>
-          <p>Create or join a league to start placing fantasy positions.</p>
+        <div className="rounded-[0.92rem] border border-dashed border-[var(--line)] p-6 text-center text-[var(--muted)]">
+          <h2 className="m-0 leading-[1.16]">No league selected</h2>
+          <p className="m-0">Create or join a league to start placing fantasy positions.</p>
         </div>
       )}
     </aside>

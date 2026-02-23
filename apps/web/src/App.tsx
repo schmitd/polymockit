@@ -105,10 +105,13 @@ export default function App() {
   }, [marketHistory]);
   const visibleTags = useMemo(() => {
     const needle = tagSearch.trim().toLowerCase();
-    if (!needle) {
-      return tags;
-    }
-    return tags.filter((tag) => tag.label.toLowerCase().includes(needle) || tag.slug.toLowerCase().includes(needle));
+    return tags.filter((tag) => {
+      const normalizedSlug = tag.slug.trim().toLowerCase();
+      if (!needle) {
+        return true;
+      }
+      return tag.label.toLowerCase().includes(needle) || normalizedSlug.includes(needle);
+    });
   }, [tagSearch, tags]);
 
   const clearBanner = useCallback(() => {
@@ -593,10 +596,13 @@ export default function App() {
     }
   };
 
-  const handleSelectLeague = useCallback((leagueId: string) => {
-    clearBanner();
-    setSelectedLeagueId(leagueId);
-  }, [clearBanner]);
+  const handleSelectLeague = useCallback(
+    (leagueId: string) => {
+      clearBanner();
+      setSelectedLeagueId(leagueId);
+    },
+    [clearBanner],
+  );
 
   const handleOpenSlug = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -766,7 +772,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="flex h-screen flex-col overflow-hidden">
       <DashboardHeader
         currentRoute={currentRoute}
         onNavigate={navigateTo}
@@ -775,78 +781,88 @@ export default function App() {
         onSignOut={() => void handleSignOut()}
       />
 
-      {error ? <div className="banner error">{error}</div> : null}
-      {notice ? <div className="banner notice">{notice}</div> : null}
+      {error ? (
+        <div className="mx-4 mt-2 rounded-[0.8rem] border border-[color-mix(in_srgb,var(--danger)_45%,transparent)] bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] px-4 py-3 text-[0.92rem] text-[#ffd5da] sm:mx-6">
+          {error}
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="mx-4 mt-2 rounded-[0.8rem] border border-[color-mix(in_srgb,var(--notice)_45%,transparent)] bg-[color-mix(in_srgb,var(--notice)_12%,transparent)] px-4 py-3 text-[0.92rem] text-[#ffe6a8] sm:mx-6">
+          {notice}
+        </div>
+      ) : null}
 
-      {currentRoute === "leagues" ? (
-        <LeagueSetupView
-          createLeagueForm={createLeagueForm}
-          onCreateLeagueNameChange={(name) =>
-            setCreateLeagueForm((current) => ({
-              ...current,
-              name,
-            }))
-          }
-          onCreateLeagueBankrollChange={(bankroll) =>
-            setCreateLeagueForm((current) => ({
-              ...current,
-              bankroll,
-            }))
-          }
-          onCreateLeague={handleCreateLeague}
-          isCreatingLeague={busy === "createLeague"}
-          joinCode={joinCode}
-          onJoinCodeChange={setJoinCode}
-          onJoinLeague={handleJoinLeague}
-          isJoiningLeague={busy === "joinLeague"}
-          leagues={leagues}
-          selectedLeagueId={selectedLeagueId}
-          onOpenLeague={handleOpenLeagueFromSetup}
-          onBackToDesk={() => navigateTo("desk")}
-        />
-      ) : (
-        <main className="layout-grid">
-          <MarketFeedPanel
-            feedMode={feedMode}
-            onFeedModeChange={handleFeedModeChange}
-            isRefreshingMarkets={isRefreshingMarkets}
-            markets={markets}
-            maxMarketRows={MAX_MARKET_ROWS}
-            selectedMarketId={selectedMarketId}
-            onSelectMarket={(marketId) => setSelectedMarketId(marketId)}
-            tagSearch={tagSearch}
-            onTagSearchChange={setTagSearch}
-            selectedTagSlug={selectedTagSlug}
-            onSelectTag={handleTagSelection}
-            isLoadingTags={isLoadingTags}
-            visibleTags={visibleTags}
+      <div className="min-h-0 flex-1">
+        {currentRoute === "leagues" ? (
+          <LeagueSetupView
+            createLeagueForm={createLeagueForm}
+            onCreateLeagueNameChange={(name) =>
+              setCreateLeagueForm((current) => ({
+                ...current,
+                name,
+              }))
+            }
+            onCreateLeagueBankrollChange={(bankroll) =>
+              setCreateLeagueForm((current) => ({
+                ...current,
+                bankroll,
+              }))
+            }
+            onCreateLeague={handleCreateLeague}
+            isCreatingLeague={busy === "createLeague"}
+            joinCode={joinCode}
+            onJoinCodeChange={setJoinCode}
+            onJoinLeague={handleJoinLeague}
+            isJoiningLeague={busy === "joinLeague"}
+            leagues={leagues}
+            selectedLeagueId={selectedLeagueId}
+            onOpenLeague={handleOpenLeagueFromSetup}
+            onBackToDesk={() => navigateTo("desk")}
           />
-          <LeagueSidebar
-            selectedLeague={selectedLeague}
-            leagueDetail={leagueDetail}
-            selectedMarket={selectedMarket}
-            selectedOutcome={selectedOutcome}
-            onSelectedOutcomeChange={(outcome) => setSelectedOutcome(outcome)}
-            marketHistory={marketHistory}
-            historyStats={historyStats}
-            isRefreshingLeague={isRefreshingLeague}
-            standings={standings}
-            maxLeaderboardRows={MAX_LEADERBOARD_ROWS}
-            slugInput={slugInput}
-            onSlugInputChange={setSlugInput}
-            isOpeningSlug={isOpeningSlug}
-            onOpenSlug={handleOpenSlug}
-            stakeInput={stakeInput}
-            onStakeInputChange={setStakeInput}
-            onPlaceBet={handlePlaceBet}
-            busy={busy}
-            myPositions={myPositions}
-            maxPositionsRows={MAX_POSITIONS_ROWS}
-            onCashOutPosition={(position) => void handleCashOutPosition(position)}
-            maxRecentBetsRows={MAX_RECENT_BETS_ROWS}
-          />
-        </main>
-      )}
+        ) : (
+          <main className="grid h-full min-h-0 grid-cols-1 gap-3 p-3 sm:p-6 xl:grid-cols-[1.45fr_1fr]">
+            <MarketFeedPanel
+              feedMode={feedMode}
+              onFeedModeChange={handleFeedModeChange}
+              isRefreshingMarkets={isRefreshingMarkets}
+              markets={markets}
+              maxMarketRows={MAX_MARKET_ROWS}
+              selectedMarketId={selectedMarketId}
+              onSelectMarket={(marketId) => setSelectedMarketId(marketId)}
+              tagSearch={tagSearch}
+              onTagSearchChange={setTagSearch}
+              selectedTagSlug={selectedTagSlug}
+              onSelectTag={handleTagSelection}
+              isLoadingTags={isLoadingTags}
+              visibleTags={visibleTags}
+            />
+            <LeagueSidebar
+              selectedLeague={selectedLeague}
+              leagueDetail={leagueDetail}
+              selectedMarket={selectedMarket}
+              selectedOutcome={selectedOutcome}
+              onSelectedOutcomeChange={(outcome) => setSelectedOutcome(outcome)}
+              marketHistory={marketHistory}
+              historyStats={historyStats}
+              isRefreshingLeague={isRefreshingLeague}
+              standings={standings}
+              maxLeaderboardRows={MAX_LEADERBOARD_ROWS}
+              slugInput={slugInput}
+              onSlugInputChange={setSlugInput}
+              isOpeningSlug={isOpeningSlug}
+              onOpenSlug={handleOpenSlug}
+              stakeInput={stakeInput}
+              onStakeInputChange={setStakeInput}
+              onPlaceBet={handlePlaceBet}
+              busy={busy}
+              myPositions={myPositions}
+              maxPositionsRows={MAX_POSITIONS_ROWS}
+              onCashOutPosition={(position) => void handleCashOutPosition(position)}
+              maxRecentBetsRows={MAX_RECENT_BETS_ROWS}
+            />
+          </main>
+        )}
+      </div>
     </div>
   );
 }

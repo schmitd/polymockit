@@ -7,6 +7,7 @@ type RawMarket = {
   id: string;
   question: string;
   slug?: string;
+  tags?: unknown;
   outcomes?: string;
   outcomePrices?: string;
   clobTokenIds?: string;
@@ -34,6 +35,7 @@ type RawHistoryResponse = {
 };
 
 type RawEvent = {
+  tags?: unknown;
   markets?: RawMarket[];
 };
 
@@ -60,14 +62,109 @@ const parseNumber = (input?: string): number => {
   return Number.isFinite(value) ? value : 0;
 };
 
-const toMarket = (market: RawMarket) => {
+const normalizeSlug = (input: unknown): string =>
+  String(input ?? "")
+    .trim()
+    .toLowerCase();
+
+const collectTagRefs = (input: unknown): unknown[] => {
+  if (Array.isArray(input)) {
+    return input;
+  }
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      if (parsed && typeof parsed === "object") {
+        return [parsed];
+      }
+    } catch {
+      return trimmed
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+    return [];
+  }
+  if (input && typeof input === "object") {
+    return [input];
+  }
+  return [];
+};
+
+const parseTagSlugs = (
+  input: unknown,
+  tagIdToSlug: ReadonlyMap<string, string> = new Map(),
+): string[] => {
+  const refs = collectTagRefs(input);
+  const slugs: string[] = [];
+  for (const entry of refs) {
+    if (typeof entry === "string") {
+      const normalized = normalizeSlug(entry);
+      const slug = tagIdToSlug.get(normalized) ?? normalized;
+      if (slug) {
+        slugs.push(slug);
+      }
+      continue;
+    }
+    if (typeof entry === "number") {
+      const slug = tagIdToSlug.get(normalizeSlug(entry));
+      if (slug) {
+        slugs.push(slug);
+      }
+      continue;
+    }
+
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const maybeSlug =
+      "slug" in entry
+        ? (entry.slug as unknown)
+        : "tag_slug" in entry
+          ? (entry.tag_slug as unknown)
+          : "slugName" in entry
+            ? (entry.slugName as unknown)
+            : "id" in entry
+              ? (entry.id as unknown)
+              : "tag_id" in entry
+                ? (entry.tag_id as unknown)
+                : "";
+    const normalized = normalizeSlug(maybeSlug);
+    const slug = tagIdToSlug.get(normalized) ?? normalized;
+    if (slug) {
+      slugs.push(slug);
+    }
+  }
+
+  return Array.from(new Set(slugs));
+};
+
+const toMarket = (
+  market: RawMarket,
+  eventTagSlugs: string[] = [],
+  tagIdToSlug: ReadonlyMap<string, string> = new Map(),
+) => {
   const outcomeNames = parseStringArray(market.outcomes);
-  const outcomePrices = parseStringArray(market.outcomePrices).map((price) => Number.parseFloat(price));
+  const outcomePrices = parseStringArray(market.outcomePrices).map((price) =>
+    Number.parseFloat(price),
+  );
+  const tagSlugs = Array.from(
+    new Set([...parseTagSlugs(market.tags, tagIdToSlug), ...eventTagSlugs]),
+  );
 
   return {
     marketId: market.id,
     question: market.question,
     slug: market.slug,
+    tagSlugs,
     outcomes: outcomeNames.map((name, index) => ({
       name,
       price: Number.isFinite(outcomePrices[index]) ? outcomePrices[index] : 0,
@@ -108,7 +205,10 @@ export const listMarkets = action({
     limit: v.optional(v.number()),
   },
   handler: async (_ctx, args) => {
-    const cappedLimit = Math.min(Math.max(Math.round(args.limit ?? 60), 10), 200);
+    const cappedLimit = Math.min(
+      Math.max(Math.round(args.limit ?? 60), 10),
+      200,
+    );
     const search = args.query?.trim().toLowerCase() ?? "";
     const tagSlug = args.tagSlug?.trim().toLowerCase() ?? "";
     const mode = args.mode ?? "trending";
@@ -127,14 +227,21 @@ export const listMarkets = action({
           tag_slug: tagSlug,
         });
 
-        const page = await fetchJson<RawEvent[]>(`/events?${params.toString()}`);
+        const page = await fetchJson<RawEvent[]>(
+          `/events?${params.toString()}`,
+        );
         if (page.length === 0) {
           break;
         }
 
         for (const event of page) {
+          const eventTagSlugs = parseTagSlugs(event.tags);
+          const fallbackTagSlugs = Array.from(
+            new Set([...eventTagSlugs, tagSlug]),
+          );
+
           for (const raw of event.markets ?? []) {
-            const market = toMarket(raw);
+            const market = toMarket(raw, fallbackTagSlugs);
             if (market.closed || !market.active) {
               continue;
             }
@@ -165,6 +272,16 @@ export const listMarkets = action({
         }
       }
     } else {
+      const tagCatalog = await fetchJson<RawTag[]>(`/tags?limit=500`);
+      const tagIdToSlug = new Map<string, string>();
+      for (const tag of tagCatalog) {
+        const id = normalizeSlug(tag.id);
+        const slug = normalizeSlug(tag.slug);
+        if (id && slug) {
+          tagIdToSlug.set(id, slug);
+        }
+      }
+
       while (markets.length < cappedLimit) {
         const params = new URLSearchParams({
           active: "true",
@@ -176,13 +293,15 @@ export const listMarkets = action({
           params.set("search", search);
         }
 
-        const page = await fetchJson<RawMarket[]>(`/markets?${params.toString()}`);
+        const page = await fetchJson<RawMarket[]>(
+          `/markets?${params.toString()}`,
+        );
         if (page.length === 0) {
           break;
         }
 
         for (const raw of page) {
-          const market = toMarket(raw);
+          const market = toMarket(raw, [], tagIdToSlug);
           if (seen.has(market.marketId)) {
             continue;
           }
@@ -205,7 +324,10 @@ export const listMarkets = action({
       return normalized.sort((a, b) => {
         const left = Date.parse(a.createdAt ?? "");
         const right = Date.parse(b.createdAt ?? "");
-        return (Number.isFinite(right) ? right : 0) - (Number.isFinite(left) ? left : 0);
+        return (
+          (Number.isFinite(right) ? right : 0) -
+          (Number.isFinite(left) ? left : 0)
+        );
       });
     }
     return normalized.sort((a, b) => b.volume - a.volume);
@@ -229,7 +351,8 @@ export const getMarketBySlug = action({
       closed: "false",
     });
     const page = await fetchJson<RawMarket[]>(`/markets?${params.toString()}`);
-    const exact = page.find((entry) => entry.slug?.toLowerCase() === slug) ?? page[0];
+    const exact =
+      page.find((entry) => entry.slug?.toLowerCase() === slug) ?? page[0];
     if (!exact) {
       throw new ConvexError("No active market found for that slug.");
     }
@@ -242,13 +365,49 @@ export const listTags = action({
     limit: v.optional(v.number()),
   },
   handler: async (_ctx, args) => {
-    const cappedLimit = Math.min(Math.max(Math.round(args.limit ?? 80), 20), 200);
-    const page = await fetchJson<RawTag[]>(`/tags?limit=${cappedLimit}`);
-    return page
+    const cappedLimit = Math.min(
+      Math.max(Math.round(args.limit ?? 80), 20),
+      200,
+    );
+    const [tagPage, firstEventPage] = await Promise.all([
+      fetchJson<RawTag[]>(`/tags?limit=${Math.max(cappedLimit * 2, 200)}`),
+      fetchJson<RawEvent[]>(
+        `/events?active=true&closed=false&limit=200&offset=0`,
+      ),
+    ]);
+
+    const activeTagSlugs = new Set<string>();
+    for (const event of firstEventPage) {
+      for (const slug of parseTagSlugs(event.tags)) {
+        activeTagSlugs.add(slug);
+      }
+    }
+
+    // Pull a few more event pages to broaden tag coverage without expensive full scans.
+    let offset = firstEventPage.length;
+    for (let i = 0; i < 3 && offset > 0; i += 1) {
+      const page = await fetchJson<RawEvent[]>(
+        `/events?active=true&closed=false&limit=200&offset=${offset}`,
+      );
+      if (page.length === 0) {
+        break;
+      }
+      for (const event of page) {
+        for (const slug of parseTagSlugs(event.tags)) {
+          activeTagSlugs.add(slug);
+        }
+      }
+      offset += page.length;
+      if (page.length < 200) {
+        break;
+      }
+    }
+
+    return tagPage
       .map((tag) => {
-        const slug = String(tag.slug ?? "").trim();
+        const slug = normalizeSlug(tag.slug);
         const label = String(tag.label ?? slug).trim();
-        if (!slug || !label) {
+        if (!slug || !label || !activeTagSlugs.has(slug)) {
           return null;
         }
         return {
@@ -257,8 +416,12 @@ export const listTags = action({
           label,
         };
       })
-      .filter((tag): tag is { id: string; slug: string; label: string } => tag !== null)
-      .sort((a, b) => a.label.localeCompare(b.label));
+      .filter(
+        (tag): tag is { id: string; slug: string; label: string } =>
+          tag !== null,
+      )
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .slice(0, cappedLimit);
   },
 });
 
@@ -271,7 +434,9 @@ export const getMarket = action({
     if (!marketId) {
       throw new ConvexError("Market ID is required.");
     }
-    const data = await fetchJson<RawMarket>(`/markets/${encodeURIComponent(marketId)}`);
+    const data = await fetchJson<RawMarket>(
+      `/markets/${encodeURIComponent(marketId)}`,
+    );
     return toMarket(data);
   },
 });
@@ -288,9 +453,13 @@ export const getOutcomePrice = action({
       throw new ConvexError("Market ID and outcome are required.");
     }
 
-    const data = await fetchJson<RawMarket>(`/markets/${encodeURIComponent(marketId)}`);
+    const data = await fetchJson<RawMarket>(
+      `/markets/${encodeURIComponent(marketId)}`,
+    );
     const market = toMarket(data);
-    const match = market.outcomes.find((entry) => entry.name.toLowerCase() === outcome);
+    const match = market.outcomes.find(
+      (entry) => entry.name.toLowerCase() === outcome,
+    );
     return match?.price ?? null;
   },
 });
@@ -321,9 +490,13 @@ export const getOutcomeHistory = action({
       throw new ConvexError("Market ID and outcome are required.");
     }
 
-    const rawMarket = await fetchJson<RawMarket>(`/markets/${encodeURIComponent(marketId)}`);
+    const rawMarket = await fetchJson<RawMarket>(
+      `/markets/${encodeURIComponent(marketId)}`,
+    );
     const market = toMarket(rawMarket);
-    const outcomeIndex = market.outcomes.findIndex((entry) => entry.name.toLowerCase() === outcome);
+    const outcomeIndex = market.outcomes.findIndex(
+      (entry) => entry.name.toLowerCase() === outcome,
+    );
     const tokenId = market.clobTokenIds[outcomeIndex] ?? market.clobTokenIds[0];
 
     if (!tokenId) {
@@ -339,14 +512,16 @@ export const getOutcomeHistory = action({
     const historyResponse = await fetchAbsoluteJson<RawHistoryResponse>(
       `https://clob.polymarket.com/prices-history?${params.toString()}`,
     );
-    const history = Array.isArray(historyResponse.history) ? historyResponse.history : [];
+    const history = Array.isArray(historyResponse.history)
+      ? historyResponse.history
+      : [];
     return downsampleHistory(
       history
-      .filter((entry) => Number.isFinite(entry.t) && Number.isFinite(entry.p))
-      .map((entry) => ({
-        timestamp: Math.floor(entry.t * 1000),
-        price: entry.p,
-      })),
+        .filter((entry) => Number.isFinite(entry.t) && Number.isFinite(entry.p))
+        .map((entry) => ({
+          timestamp: Math.floor(entry.t * 1000),
+          price: entry.p,
+        })),
     );
   },
 });
