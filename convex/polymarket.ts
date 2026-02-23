@@ -33,6 +33,10 @@ type RawHistoryResponse = {
   }>;
 };
 
+type RawEvent = {
+  markets?: RawMarket[];
+};
+
 const parseStringArray = (input?: string): string[] => {
   if (!input) {
     return [];
@@ -113,48 +117,95 @@ export const listMarkets = action({
     const markets: Array<ReturnType<typeof toMarket>> = [];
     let offset = 0;
 
-    while (markets.length < cappedLimit) {
-      const params = new URLSearchParams({
-        active: "true",
-        closed: "false",
-        limit: String(pageSize),
-        offset: String(offset),
-      });
-      if (search) {
-        params.set("search", search);
-      }
-      if (tagSlug) {
-        params.set("tag_slug", tagSlug);
-      }
+    if (tagSlug) {
+      while (markets.length < cappedLimit) {
+        const params = new URLSearchParams({
+          active: "true",
+          closed: "false",
+          limit: String(pageSize),
+          offset: String(offset),
+          tag_slug: tagSlug,
+        });
 
-      const page = await fetchJson<RawMarket[]>(`/markets?${params.toString()}`);
-      if (page.length === 0) {
-        break;
-      }
-
-      for (const raw of page) {
-        const market = toMarket(raw);
-        if (seen.has(market.marketId)) {
-          continue;
+        const page = await fetchJson<RawEvent[]>(`/events?${params.toString()}`);
+        if (page.length === 0) {
+          break;
         }
-        seen.add(market.marketId);
-        markets.push(market);
-        if (markets.length >= cappedLimit) {
+
+        for (const event of page) {
+          for (const raw of event.markets ?? []) {
+            const market = toMarket(raw);
+            if (market.closed || !market.active) {
+              continue;
+            }
+            if (
+              search &&
+              !market.question.toLowerCase().includes(search) &&
+              !(market.slug ?? "").toLowerCase().includes(search)
+            ) {
+              continue;
+            }
+            if (seen.has(market.marketId)) {
+              continue;
+            }
+            seen.add(market.marketId);
+            markets.push(market);
+            if (markets.length >= cappedLimit) {
+              break;
+            }
+          }
+          if (markets.length >= cappedLimit) {
+            break;
+          }
+        }
+
+        offset += page.length;
+        if (page.length < pageSize) {
           break;
         }
       }
+    } else {
+      while (markets.length < cappedLimit) {
+        const params = new URLSearchParams({
+          active: "true",
+          closed: "false",
+          limit: String(pageSize),
+          offset: String(offset),
+        });
+        if (search) {
+          params.set("search", search);
+        }
 
-      offset += page.length;
-      if (page.length < pageSize) {
-        break;
+        const page = await fetchJson<RawMarket[]>(`/markets?${params.toString()}`);
+        if (page.length === 0) {
+          break;
+        }
+
+        for (const raw of page) {
+          const market = toMarket(raw);
+          if (seen.has(market.marketId)) {
+            continue;
+          }
+          seen.add(market.marketId);
+          markets.push(market);
+          if (markets.length >= cappedLimit) {
+            break;
+          }
+        }
+
+        offset += page.length;
+        if (page.length < pageSize) {
+          break;
+        }
       }
     }
+
     const normalized = markets.slice(0, cappedLimit);
     if (mode === "recent") {
       return normalized.sort((a, b) => {
-        const left = Date.parse(b.createdAt ?? "");
-        const right = Date.parse(a.createdAt ?? "");
-        return (Number.isFinite(left) ? left : 0) - (Number.isFinite(right) ? right : 0);
+        const left = Date.parse(a.createdAt ?? "");
+        const right = Date.parse(b.createdAt ?? "");
+        return (Number.isFinite(right) ? right : 0) - (Number.isFinite(left) ? left : 0);
       });
     }
     return normalized.sort((a, b) => b.volume - a.volume);
