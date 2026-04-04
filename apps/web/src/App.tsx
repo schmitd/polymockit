@@ -12,7 +12,7 @@ import { FantasyLeagueClient, PolymarketClient } from "@polymockit/effect-servic
 import { useConvexAuth } from "convex/react";
 import { Effect } from "effect";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BootScreen, RuntimeConfigErrorPanel, SignInPanel } from "./components/AuthScreens";
+import { RuntimeConfigErrorPanel } from "./components/AuthScreens";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { LeagueSetupView } from "./components/LeagueSetupView";
 import { LeagueSidebar } from "./components/LeagueSidebar";
@@ -32,6 +32,51 @@ const MAX_LEADERBOARD_ROWS = 6;
 const MAX_POSITIONS_ROWS = 5;
 const MAX_RECENT_BETS_ROWS = 5;
 type AppRoute = "desk" | "leagues";
+
+function SessionOverlay({
+  error,
+  isAuthLoading,
+  isSigningIn,
+  onSignIn,
+}: {
+  error: string | null;
+  isAuthLoading: boolean;
+  isSigningIn: boolean;
+  onSignIn: () => void;
+}) {
+  const isBusy = isAuthLoading || isSigningIn;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center p-3 sm:p-6">
+      <section className="pointer-events-auto mt-16 flex w-full max-w-[32rem] flex-col gap-3 rounded-[1.2rem] border border-[var(--line)] bg-[linear-gradient(165deg,rgba(12,26,35,0.96),rgba(8,14,21,0.9))] p-[clamp(1.2rem,2vw,2rem)] shadow-[var(--shadow)] backdrop-blur-[12px]">
+        <p className="m-0 text-[0.72rem] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">Polymockit</p>
+        <h2 className="m-0 text-[clamp(1.5rem,3vw,2.2rem)] leading-[1.16]">
+          {isAuthLoading ? "Checking your session." : "Sign in to open the trading desk."}
+        </h2>
+        <p className="m-0 text-[var(--muted)]">
+          {isAuthLoading
+            ? "The app shell is already loaded. Live league and market data will attach once auth resolves."
+            : "Browse the layout immediately, then authenticate when you are ready to load leagues and live market data."}
+        </p>
+        {!isAuthLoading ? (
+          <button
+            type="button"
+            className="w-fit rounded-[0.8rem] border-0 bg-[linear-gradient(135deg,#28cfae_0%,#12a6bc_100%)] px-4 py-2.5 font-bold text-[#022018] transition duration-150 hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65"
+            onClick={onSignIn}
+            disabled={isBusy}
+          >
+            {isSigningIn ? "Signing in..." : "Sign in with Shoo"}
+          </button>
+        ) : null}
+        {error ? (
+          <div className="rounded-[0.8rem] border border-[color-mix(in_srgb,var(--danger)_45%,transparent)] bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] px-4 py-3 text-[0.92rem] text-[#ffd5da]">
+            {error}
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
 
 function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -759,29 +804,27 @@ export default function App() {
     [handleSelectLeague, navigateTo],
   );
 
-  if (booting) {
-    return <BootScreen />;
-  }
-
   if (runtimeConfigError) {
     return <RuntimeConfigErrorPanel runtimeConfigError={runtimeConfigError} />;
   }
 
-  if (!session) {
-    return <SignInPanel error={error} isSigningIn={busy === "signin"} onSignIn={() => void handleSignIn()} />;
-  }
+  const showSessionOverlay = !session;
+  const shellMuted = showSessionOverlay ? "pointer-events-none select-none opacity-45 blur-[1px]" : "";
 
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader
         currentRoute={currentRoute}
         onNavigate={navigateTo}
-        user={session.user}
+        user={session?.user ?? null}
+        isAuthLoading={isAuthLoading || booting}
+        isSigningIn={busy === "signin"}
         isSigningOut={busy === "signout"}
+        onSignIn={() => void handleSignIn()}
         onSignOut={() => void handleSignOut()}
       />
 
-      {error ? (
+      {error && session ? (
         <div className="mx-4 mt-2 rounded-[0.8rem] border border-[color-mix(in_srgb,var(--danger)_45%,transparent)] bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] px-4 py-3 text-[0.92rem] text-[#ffd5da] sm:mx-6">
           {error}
         </div>
@@ -794,72 +837,94 @@ export default function App() {
 
       <div className="flex-1">
         {currentRoute === "leagues" ? (
-          <LeagueSetupView
-            createLeagueForm={createLeagueForm}
-            onCreateLeagueNameChange={(name) =>
-              setCreateLeagueForm((current) => ({
-                ...current,
-                name,
-              }))
-            }
-            onCreateLeagueBankrollChange={(bankroll) =>
-              setCreateLeagueForm((current) => ({
-                ...current,
-                bankroll,
-              }))
-            }
-            onCreateLeague={handleCreateLeague}
-            isCreatingLeague={busy === "createLeague"}
-            joinCode={joinCode}
-            onJoinCodeChange={setJoinCode}
-            onJoinLeague={handleJoinLeague}
-            isJoiningLeague={busy === "joinLeague"}
-            leagues={leagues}
-            selectedLeagueId={selectedLeagueId}
-            onOpenLeague={handleOpenLeagueFromSetup}
-            onBackToDesk={() => navigateTo("desk")}
-          />
+          <div className="relative">
+            <div className={shellMuted}>
+              <LeagueSetupView
+                createLeagueForm={createLeagueForm}
+                onCreateLeagueNameChange={(name) =>
+                  setCreateLeagueForm((current) => ({
+                    ...current,
+                    name,
+                  }))
+                }
+                onCreateLeagueBankrollChange={(bankroll) =>
+                  setCreateLeagueForm((current) => ({
+                    ...current,
+                    bankroll,
+                  }))
+                }
+                onCreateLeague={handleCreateLeague}
+                isCreatingLeague={busy === "createLeague"}
+                joinCode={joinCode}
+                onJoinCodeChange={setJoinCode}
+                onJoinLeague={handleJoinLeague}
+                isJoiningLeague={busy === "joinLeague"}
+                leagues={leagues}
+                selectedLeagueId={selectedLeagueId}
+                onOpenLeague={handleOpenLeagueFromSetup}
+                onBackToDesk={() => navigateTo("desk")}
+              />
+            </div>
+            {showSessionOverlay ? (
+              <SessionOverlay
+                error={error}
+                isAuthLoading={isAuthLoading || booting}
+                isSigningIn={busy === "signin"}
+                onSignIn={() => void handleSignIn()}
+              />
+            ) : null}
+          </div>
         ) : (
-          <main className="grid grid-cols-1 gap-3 p-3 sm:p-6 xl:grid-cols-[1.45fr_1fr]">
-            <MarketFeedPanel
-              feedMode={feedMode}
-              onFeedModeChange={handleFeedModeChange}
-              isRefreshingMarkets={isRefreshingMarkets}
-              markets={markets}
-              maxMarketRows={MAX_MARKET_ROWS}
-              selectedMarketId={selectedMarketId}
-              onSelectMarket={(marketId) => setSelectedMarketId(marketId)}
-              tagSearch={tagSearch}
-              onTagSearchChange={setTagSearch}
-              selectedTagSlug={selectedTagSlug}
-              onSelectTag={handleTagSelection}
-              isLoadingTags={isLoadingTags}
-              visibleTags={visibleTags}
-            />
-            <LeagueSidebar
-              selectedLeague={selectedLeague}
-              leagueDetail={leagueDetail}
-              selectedMarket={selectedMarket}
-              selectedOutcome={selectedOutcome}
-              onSelectedOutcomeChange={(outcome) => setSelectedOutcome(outcome)}
-              marketHistory={marketHistory}
-              historyStats={historyStats}
-              isRefreshingLeague={isRefreshingLeague}
-              standings={standings}
-              maxLeaderboardRows={MAX_LEADERBOARD_ROWS}
-              slugInput={slugInput}
-              onSlugInputChange={setSlugInput}
-              isOpeningSlug={isOpeningSlug}
-              onOpenSlug={handleOpenSlug}
-              stakeInput={stakeInput}
-              onStakeInputChange={setStakeInput}
-              onPlaceBet={handlePlaceBet}
-              busy={busy}
-              myPositions={myPositions}
-              maxPositionsRows={MAX_POSITIONS_ROWS}
-              onCashOutPosition={(position) => void handleCashOutPosition(position)}
-              maxRecentBetsRows={MAX_RECENT_BETS_ROWS}
-            />
+          <main className="relative">
+            <div className={`grid grid-cols-1 gap-3 p-3 sm:p-6 xl:grid-cols-[1.45fr_1fr] ${shellMuted}`}>
+              <MarketFeedPanel
+                feedMode={feedMode}
+                onFeedModeChange={handleFeedModeChange}
+                isRefreshingMarkets={isRefreshingMarkets}
+                markets={markets}
+                maxMarketRows={MAX_MARKET_ROWS}
+                selectedMarketId={selectedMarketId}
+                onSelectMarket={(marketId) => setSelectedMarketId(marketId)}
+                tagSearch={tagSearch}
+                onTagSearchChange={setTagSearch}
+                selectedTagSlug={selectedTagSlug}
+                onSelectTag={handleTagSelection}
+                isLoadingTags={isLoadingTags}
+                visibleTags={visibleTags}
+              />
+              <LeagueSidebar
+                selectedLeague={selectedLeague}
+                leagueDetail={leagueDetail}
+                selectedMarket={selectedMarket}
+                selectedOutcome={selectedOutcome}
+                onSelectedOutcomeChange={(outcome) => setSelectedOutcome(outcome)}
+                marketHistory={marketHistory}
+                historyStats={historyStats}
+                isRefreshingLeague={isRefreshingLeague}
+                standings={standings}
+                maxLeaderboardRows={MAX_LEADERBOARD_ROWS}
+                slugInput={slugInput}
+                onSlugInputChange={setSlugInput}
+                isOpeningSlug={isOpeningSlug}
+                onOpenSlug={handleOpenSlug}
+                stakeInput={stakeInput}
+                onStakeInputChange={setStakeInput}
+                onPlaceBet={handlePlaceBet}
+                busy={busy}
+                myPositions={myPositions}
+                maxPositionsRows={MAX_POSITIONS_ROWS}
+                onCashOutPosition={(position) => void handleCashOutPosition(position)}
+                maxRecentBetsRows={MAX_RECENT_BETS_ROWS}
+              />
+            </div>
+            {showSessionOverlay ? (
+              <SessionOverlay
+                error={error}
+                isAuthLoading={isAuthLoading || booting}
+                isSigningIn={busy === "signin"}
+                onSignIn={() => void handleSignIn()}
+              />
+            ) : null}
           </main>
         )}
       </div>

@@ -5,8 +5,11 @@ type AppRoute = "desk" | "leagues";
 interface DashboardHeaderProps {
   currentRoute: AppRoute;
   onNavigate: (route: AppRoute) => void;
-  user: AppUser;
+  user: AppUser | null;
+  isAuthLoading: boolean;
+  isSigningIn: boolean;
   isSigningOut: boolean;
+  onSignIn: () => void;
   onSignOut: () => void;
 }
 
@@ -22,9 +25,15 @@ export function DashboardHeader({
   currentRoute,
   onNavigate,
   user,
+  isAuthLoading,
+  isSigningIn,
   isSigningOut,
+  onSignIn,
   onSignOut,
 }: DashboardHeaderProps) {
+  const authActionLabel = isAuthLoading ? "Checking session..." : isSigningIn ? "Signing in..." : "Sign in";
+  const isBusy = isAuthLoading || isSigningIn || isSigningOut;
+
   return (
     <header
       className={`${glassClass} mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[0.92rem] p-4 sm:mx-6`}
@@ -40,6 +49,7 @@ export function DashboardHeader({
             type="button"
             className={currentRoute === "desk" ? buttonPrimaryClass : buttonSecondaryClass}
             onClick={() => onNavigate("desk")}
+            disabled={isAuthLoading}
           >
             Desk
           </button>
@@ -47,27 +57,36 @@ export function DashboardHeader({
             type="button"
             className={currentRoute === "leagues" ? buttonPrimaryClass : buttonSecondaryClass}
             onClick={() => onNavigate("leagues")}
+            disabled={isAuthLoading}
           >
             League Setup
           </button>
         </div>
 
-        <div className="flex min-w-0 items-center gap-2.5 rounded-full border border-[var(--line)] bg-[rgba(10,18,26,0.72)] px-3 py-1.5">
-          <span
-            className="grid h-7 w-7 place-items-center rounded-full font-semibold text-[#04110f]"
-            style={{ backgroundColor: user.accentColor }}
-          >
-            {user.displayName.slice(0, 1).toUpperCase()}
-          </span>
-          <div>
-            <strong className="block">{user.displayName}</strong>
-            <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">@{user.username}</small>
-          </div>
-        </div>
+        {user ? (
+          <>
+            <div className="flex min-w-0 items-center gap-2.5 rounded-full border border-[var(--line)] bg-[rgba(10,18,26,0.72)] px-3 py-1.5">
+              <span
+                className="grid h-7 w-7 place-items-center rounded-full font-semibold text-[#04110f]"
+                style={{ backgroundColor: user.accentColor }}
+              >
+                {user.displayName.slice(0, 1).toUpperCase()}
+              </span>
+              <div>
+                <strong className="block">{user.displayName}</strong>
+                <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">@{user.username}</small>
+              </div>
+            </div>
 
-        <button type="button" className={buttonSecondaryClass} onClick={onSignOut} disabled={isSigningOut}>
-          {isSigningOut ? "Signing out..." : "Sign out"}
-        </button>
+            <button type="button" className={buttonSecondaryClass} onClick={onSignOut} disabled={isBusy}>
+              {isSigningOut ? "Signing out..." : "Sign out"}
+            </button>
+          </>
+        ) : (
+          <button type="button" className={buttonSecondaryClass} onClick={onSignIn} disabled={isBusy}>
+            {authActionLabel}
+          </button>
+        )}
       </div>
     </header>
   );
