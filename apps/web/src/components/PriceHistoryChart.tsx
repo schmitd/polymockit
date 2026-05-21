@@ -25,18 +25,18 @@ export function PriceHistoryChart({ points }: PriceHistoryChartProps) {
     : "";
 
   return (
-    <svg className="h-full w-full rounded-[0.7rem] bg-[rgba(4,10,14,0.6)]" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Outcome price history">
-      <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="rgba(182, 210, 226, 0.18)" />
+    <svg className="h-full w-full rounded-[var(--radius-md)] bg-[var(--surface)]" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Outcome price history">
+      <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="var(--line)" />
       <line
         x1={padding}
         y1={Math.round(height / 2)}
         x2={width - padding}
         y2={Math.round(height / 2)}
-        stroke="rgba(182, 210, 226, 0.18)"
+        stroke="var(--line)"
       />
-      <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="rgba(182, 210, 226, 0.18)" />
+      <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="var(--line)" />
       {hasLine ? (
-        <path d={path} fill="none" stroke="#2ad4b7" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={path} fill="none" stroke="var(--accent)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
       ) : (
         <text x={width / 2} y={height / 2} textAnchor="middle" fill="var(--muted)">
           Not enough history points yet.

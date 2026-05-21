@@ -17,6 +17,7 @@ import { DashboardHeader } from "./components/DashboardHeader";
 import { LeagueSetupView } from "./components/LeagueSetupView";
 import { LeagueSidebar } from "./components/LeagueSidebar";
 import { MarketFeedPanel } from "./components/MarketFeedPanel";
+import { buttonPrimaryClass } from "./components/ui";
 import { getRuntimeConfigError, runAppEffect } from "./effect/runtime";
 import { buildLeagueAnalytics, formatCurrency, formatPercent, marketOutcomeKey } from "./lib/analytics";
 import { signIn, signOut } from "./shoo";
@@ -48,9 +49,9 @@ function SessionOverlay({
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center p-3 sm:p-6">
-      <section className="pointer-events-auto mt-16 flex w-full max-w-[32rem] flex-col gap-3 rounded-[1.2rem] border border-[var(--line)] bg-[linear-gradient(165deg,rgba(12,26,35,0.96),rgba(8,14,21,0.9))] p-[clamp(1.2rem,2vw,2rem)] shadow-[var(--shadow)] backdrop-blur-[12px]">
-        <p className="m-0 text-[0.72rem] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">Polymockit</p>
-        <h2 className="m-0 text-[clamp(1.5rem,3vw,2.2rem)] leading-[1.16]">
+      <section className="panel pointer-events-auto mt-16 flex w-full max-w-[32rem] flex-col gap-3 p-6">
+        <p className="eyebrow">Polymockit</p>
+        <h2 className="title">
           {isAuthLoading ? "Checking your session." : "Sign in to open the trading desk."}
         </h2>
         <p className="m-0 text-[var(--muted)]">
@@ -61,7 +62,7 @@ function SessionOverlay({
         {!isAuthLoading ? (
           <button
             type="button"
-            className="w-fit rounded-[0.8rem] border-0 bg-[linear-gradient(135deg,#28cfae_0%,#12a6bc_100%)] px-4 py-2.5 font-bold text-[#022018] transition duration-150 hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65"
+            className={`${buttonPrimaryClass} w-fit`}
             onClick={onSignIn}
             disabled={isBusy}
           >
@@ -69,9 +70,7 @@ function SessionOverlay({
           </button>
         ) : null}
         {error ? (
-          <div className="rounded-[0.8rem] border border-[color-mix(in_srgb,var(--danger)_45%,transparent)] bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] px-4 py-3 text-[0.92rem] text-[#ffd5da]">
-            {error}
-          </div>
+          <div className="banner banner-danger">{error}</div>
         ) : null}
       </section>
     </div>
@@ -809,10 +808,10 @@ export default function App() {
   }
 
   const showSessionOverlay = !session;
-  const shellMuted = showSessionOverlay ? "pointer-events-none select-none opacity-45 blur-[1px]" : "";
+  const shellMuted = showSessionOverlay ? "pointer-events-none select-none opacity-45" : "";
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="app-shell flex min-h-screen flex-col">
       <DashboardHeader
         currentRoute={currentRoute}
         onNavigate={navigateTo}
@@ -825,12 +824,12 @@ export default function App() {
       />
 
       {error && session ? (
-        <div className="mx-4 mt-2 rounded-[0.8rem] border border-[color-mix(in_srgb,var(--danger)_45%,transparent)] bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] px-4 py-3 text-[0.92rem] text-[#ffd5da] sm:mx-6">
+        <div className="banner banner-danger mx-3 mt-2 sm:mx-6">
           {error}
         </div>
       ) : null}
       {notice ? (
-        <div className="mx-4 mt-2 rounded-[0.8rem] border border-[color-mix(in_srgb,var(--notice)_45%,transparent)] bg-[color-mix(in_srgb,var(--notice)_12%,transparent)] px-4 py-3 text-[0.92rem] text-[#ffe6a8] sm:mx-6">
+        <div className="banner banner-notice mx-3 mt-2 sm:mx-6">
           {notice}
         </div>
       ) : null}

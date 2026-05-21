@@ -1,6 +1,7 @@
 import type { LeagueSummary } from "@polymockit/effect-services";
 import type { FormEventHandler } from "react";
 import { formatCurrency } from "../lib/analytics";
+import { buttonPrimaryClass, buttonSecondaryClass, inputClass, monoClass, panelClass, rowCardClass } from "./ui";
 
 interface CreateLeagueFormState {
   name: string;
@@ -23,15 +24,6 @@ interface LeagueSetupViewProps {
   onBackToDesk: () => void;
 }
 
-const glassClass =
-  "border border-[var(--line)] shadow-[var(--shadow)] backdrop-blur-[12px] bg-[linear-gradient(160deg,rgba(16,28,39,0.84),rgba(11,20,28,0.74))]";
-const buttonPrimaryClass =
-  "rounded-[0.8rem] border-0 bg-[linear-gradient(135deg,#28cfae_0%,#12a6bc_100%)] px-4 py-2.5 font-bold text-[#022018] transition duration-150 hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65";
-const buttonSecondaryClass =
-  "rounded-[0.8rem] border border-[var(--line)] bg-[rgba(11,20,28,0.58)] px-4 py-2.5 font-bold text-[var(--ink)] transition duration-150 hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65";
-const inputClass =
-  "w-full rounded-[0.7rem] border border-[var(--line)] bg-[rgba(7,14,19,0.74)] px-3 py-2.5 text-[var(--ink)]";
-
 export function LeagueSetupView({
   createLeagueForm,
   onCreateLeagueNameChange,
@@ -49,28 +41,32 @@ export function LeagueSetupView({
 }: LeagueSetupViewProps) {
   return (
     <main className="p-3 sm:p-6">
-      <section className={`${glassClass} flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-2xl p-3.5`}>
+      <section className={`${panelClass} h-full min-h-0 overflow-hidden`} aria-labelledby="league-setup-title">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="m-0 leading-[1.16]">League Setup</h2>
-            <p className="m-0 text-[var(--muted)]">Create new leagues or join with invite code.</p>
+            <h2 id="league-setup-title" className="title">League Setup</h2>
+            <p className="m-0 text-[var(--muted)]">Create a league, join by code, or reopen an existing desk.</p>
           </div>
           <button type="button" className={buttonSecondaryClass} onClick={onBackToDesk}>
             Back to desk
           </button>
         </div>
         <div className="grid min-h-0 gap-3 xl:grid-cols-3">
-          <section className="grid gap-2">
-            <h3 className="m-0 leading-[1.16]">Create League</h3>
+          <section className="section-box grid gap-3 p-3">
+            <h3 className="section-title">Create League</h3>
             <form className="grid gap-2" onSubmit={onCreateLeague}>
+              <label className="sr-only" htmlFor="league-name">League name</label>
               <input
+                id="league-name"
                 required
                 className={inputClass}
                 value={createLeagueForm.name}
                 onChange={(event) => onCreateLeagueNameChange(event.target.value)}
                 placeholder="League name"
               />
+              <label className="sr-only" htmlFor="league-bankroll">Starting bankroll</label>
               <input
+                id="league-bankroll"
                 required
                 className={inputClass}
                 type="number"
@@ -86,10 +82,12 @@ export function LeagueSetupView({
             </form>
           </section>
 
-          <section className="grid gap-2">
-            <h3 className="m-0 leading-[1.16]">Join League</h3>
+          <section className="section-box grid gap-3 p-3">
+            <h3 className="section-title">Join League</h3>
             <form className="grid gap-2" onSubmit={onJoinLeague}>
+              <label className="sr-only" htmlFor="league-code">Invite code</label>
               <input
+                id="league-code"
                 required
                 className={inputClass}
                 value={joinCode}
@@ -103,27 +101,24 @@ export function LeagueSetupView({
             </form>
           </section>
 
-          <section className="grid min-h-0 gap-2">
-            <h3 className="m-0 leading-[1.16]">Your Leagues</h3>
+          <section className="section-box grid min-h-0 gap-3 p-3">
+            <h3 className="section-title">Your Leagues</h3>
             <div className="grid min-h-0 gap-2 overflow-hidden">
-              {leagues.length === 0 ? <p className="m-0 text-[var(--muted)]">No leagues yet. Create one to start.</p> : null}
+              {leagues.length === 0 ? <p className="m-0 text-[var(--muted)]">No leagues yet. Create one to start the table.</p> : null}
               {leagues.map((league) => (
                 <button
                   type="button"
                   key={league.leagueId}
-                  className={`w-full rounded-[0.82rem] border p-3 text-left text-[var(--ink)] ${
-                    league.leagueId === selectedLeagueId
-                      ? "border-[color-mix(in_srgb,var(--accent)_62%,transparent)] bg-[var(--accent-soft)]"
-                      : "border-[var(--line)] bg-[rgba(8,16,23,0.72)]"
-                  }`}
+                  className={`${rowCardClass} w-full p-3 text-left`}
+                  data-selected={league.leagueId === selectedLeagueId}
                   onClick={() => onOpenLeague(league.leagueId)}
                 >
                   <div className="flex justify-between gap-2">
                     <div>
                       <strong className="block">{league.name}</strong>
-                      <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">Code {league.code}</small>
+                      <small className={`${monoClass} text-[var(--muted)]`}>Code {league.code}</small>
                     </div>
-                    <div className="grid gap-0.5 text-right font-['IBM_Plex_Mono'] text-[0.78rem]">
+                    <div className={`${monoClass} grid gap-0.5 text-right`}>
                       <span>{league.memberCount} players</span>
                       <span>{formatCurrency(league.myCash)} cash</span>
                     </div>

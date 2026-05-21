@@ -1,0 +1,9 @@
+export const panelClass = "panel-plain flex flex-col gap-4 p-3 sm:p-4";
+export const panelChromeClass = "panel flex flex-col gap-4 p-4";
+export const sectionBoxClass = "section-box grid gap-3 p-3";
+export const buttonPrimaryClass = "btn btn-primary";
+export const buttonSecondaryClass = "btn btn-secondary";
+export const inputClass = "control";
+export const statusPillClass = "status-pill";
+export const rowCardClass = "row-card";
+export const monoClass = "mono";

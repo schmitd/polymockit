@@ -9,6 +9,16 @@ import type {
 import type { FormEventHandler } from "react";
 import { formatCurrency, formatDateTime, formatPercent, shortMarket } from "../lib/analytics";
 import { PriceHistoryChart } from "./PriceHistoryChart";
+import {
+  buttonPrimaryClass,
+  buttonSecondaryClass,
+  inputClass,
+  monoClass,
+  panelClass,
+  rowCardClass,
+  sectionBoxClass,
+  statusPillClass,
+} from "./ui";
 
 interface HistoryStats {
   latest: number;
@@ -41,17 +51,6 @@ interface LeagueSidebarProps {
   maxRecentBetsRows: number;
 }
 
-const glassClass =
-  "border border-[var(--line)] shadow-[var(--shadow)] backdrop-blur-[12px] bg-[linear-gradient(160deg,rgba(16,28,39,0.84),rgba(11,20,28,0.74))]";
-const statusPillClass =
-  "rounded-full border border-[var(--line)] bg-[rgba(18,35,46,0.74)] px-2 py-0.5 text-[0.78rem] text-[var(--muted)] font-['IBM_Plex_Mono']";
-const buttonPrimaryClass =
-  "rounded-[0.8rem] border-0 bg-[linear-gradient(135deg,#28cfae_0%,#12a6bc_100%)] px-4 py-2.5 font-bold text-[#022018] transition duration-150 hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65";
-const buttonSecondaryClass =
-  "rounded-[0.8rem] border border-[var(--line)] bg-[rgba(11,20,28,0.58)] px-4 py-2.5 font-bold text-[var(--ink)] transition duration-150 hover:-translate-y-px hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65";
-const inputClass =
-  "w-full rounded-[0.7rem] border border-[var(--line)] bg-[rgba(7,14,19,0.74)] px-3 py-2.5 text-[var(--ink)]";
-
 export function LeagueSidebar({
   selectedLeague,
   leagueDetail,
@@ -77,17 +76,17 @@ export function LeagueSidebar({
   maxRecentBetsRows,
 }: LeagueSidebarProps) {
   return (
-    <aside className={`${glassClass} flex flex-col gap-3 rounded-2xl p-3.5`}>
-      <section className="grid gap-2 rounded-[0.85rem] bg-[rgba(8,16,23,0.64)] p-2.5">
+    <aside className={panelClass} aria-label="League desk">
+      <section className={sectionBoxClass}>
         <div className="flex items-center justify-between gap-2">
-          <h3 className="m-0 leading-[1.16]">Market History</h3>
+          <h3 className="section-title">Market History</h3>
           {selectedOutcome ? <span className={statusPillClass}>{selectedOutcome}</span> : null}
         </div>
         {selectedMarket ? <p className="m-0 text-[var(--muted)]">{shortMarket(selectedMarket.question)}</p> : null}
         <div className="h-[6.35rem]">
           <PriceHistoryChart points={marketHistory} />
         </div>
-        <div className="grid grid-cols-3 gap-1.5 font-['IBM_Plex_Mono'] text-[0.72rem] text-[var(--muted)]">
+        <div className={`${monoClass} grid grid-cols-3 gap-1.5 text-[var(--muted)]`}>
           <span>Latest {historyStats ? formatPercent(historyStats.latest) : "--"}</span>
           <span>Low {historyStats ? formatPercent(historyStats.low) : "--"}</span>
           <span>High {historyStats ? formatPercent(historyStats.high) : "--"}</span>
@@ -98,14 +97,14 @@ export function LeagueSidebar({
         <>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="m-0 leading-[1.16]">{selectedLeague.name}</h2>
+              <h2 className="title">{selectedLeague.name}</h2>
               <p className="m-0 text-[var(--muted)]">Invite code {leagueDetail.league.code}</p>
             </div>
             <span className={statusPillClass}>{isRefreshingLeague ? "Syncing" : "Live"}</span>
           </div>
 
           <section className="grid gap-2">
-            <h3 className="m-0 leading-[1.16]">Leaderboard</h3>
+            <h3 className="section-title">Leaderboard</h3>
             <div className="grid gap-2 overflow-hidden">
               {standings.slice(0, maxLeaderboardRows).map((entry, index, rows) => (
                 <div
@@ -116,11 +115,11 @@ export function LeagueSidebar({
                     <strong className="block">
                       #{index + 1} {entry.displayName}
                     </strong>
-                    <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">@{entry.username}</small>
+                    <small className={`${monoClass} text-[var(--muted)]`}>@{entry.username}</small>
                   </div>
-                  <div className="grid gap-0.5 text-right font-['IBM_Plex_Mono'] text-[0.78rem]">
+                  <div className={`${monoClass} grid gap-0.5 text-right`}>
                     <span>{formatCurrency(entry.equity)} equity</span>
-                    <span className={entry.pnl >= 0 ? "text-[#77f5b0]" : "text-[#ff8e9a]"}>
+                    <span className={entry.pnl >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}>
                       {entry.pnl >= 0 ? "+" : ""}
                       {formatCurrency(entry.pnl)}
                     </span>
@@ -146,10 +145,12 @@ export function LeagueSidebar({
           </form>
           <section className="grid gap-2">
             <form className="grid gap-2" onSubmit={onPlaceBet}>
-              <h3 className="m-0 leading-[1.16]">Place Bet: {selectedMarket?.question ?? "Choose a market on the left"}</h3>
+              <h3 className="section-title">Buy Position</h3>
+              <p className="m-0 text-[var(--muted)]">{selectedMarket?.question ?? "Choose a market on the left."}</p>
               <div className="grid items-center gap-2 xl:grid-cols-[auto_minmax(12rem,1fr)_auto_minmax(7rem,9rem)]">
-                <label className="text-[0.88rem] text-[var(--muted)]">Outcome</label>
+                <label className="text-[0.88rem] font-semibold text-[var(--muted)]" htmlFor="position-outcome">Outcome</label>
                 <select
+                  id="position-outcome"
                   className={inputClass}
                   value={selectedOutcome ?? ""}
                   onChange={(event) => onSelectedOutcomeChange(event.target.value)}
@@ -160,8 +161,9 @@ export function LeagueSidebar({
                     </option>
                   ))}
                 </select>
-                <label className="text-[0.88rem] text-[var(--muted)]">Stake</label>
+                <label className="text-[0.88rem] font-semibold text-[var(--muted)]" htmlFor="position-stake">Stake</label>
                 <input
+                  id="position-stake"
                   required
                   className={inputClass}
                   type="number"
@@ -172,7 +174,7 @@ export function LeagueSidebar({
                 />
               </div>
 
-              <button type="submit" className={`${buttonPrimaryClass} w-1/2 justify-right`} disabled={busy === "placeBet"}>
+              <button type="submit" className={`${buttonPrimaryClass} w-full sm:w-fit`} disabled={busy === "placeBet"}>
                 {busy === "placeBet" ? "Submitting..." : "Buy Position"}
               </button>
             </form>
@@ -180,23 +182,23 @@ export function LeagueSidebar({
           </section>
 
           <section className="grid gap-2">
-            <h3 className="m-0 leading-[1.16]">Open Positions</h3>
+            <h3 className="section-title">Open Positions</h3>
             <div className="grid gap-2 overflow-hidden">
               {myPositions.length === 0 ? <p className="m-0 text-[var(--muted)]">No positions yet.</p> : null}
               {myPositions.slice(0, maxPositionsRows).map((position) => (
                 <div
                   key={position._id}
-                  className="flex justify-between gap-3 rounded-[0.82rem] border border-[var(--line)] bg-[rgba(8,16,23,0.72)] p-3"
+                  className={`${rowCardClass} flex justify-between gap-3 p-3`}
                 >
                   <div>
                     <strong className="block">{shortMarket(position.marketQuestion)}</strong>
-                    <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">
+                    <small className={`${monoClass} text-[var(--muted)]`}>
                       {position.outcome} | {position.shares.toFixed(2)} shares
                     </small>
                   </div>
-                  <div className="grid gap-0.5 text-right font-['IBM_Plex_Mono'] text-[0.78rem]">
+                  <div className={`${monoClass} grid gap-0.5 text-right`}>
                     <span>{formatCurrency(position.currentValue)}</span>
-                    <span className={position.unrealizedPnl >= 0 ? "text-[#77f5b0]" : "text-[#ff8e9a]"}>
+                    <span className={position.unrealizedPnl >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}>
                       {position.unrealizedPnl >= 0 ? "+" : ""}
                       {formatCurrency(position.unrealizedPnl)}
                     </span>
@@ -218,7 +220,7 @@ export function LeagueSidebar({
           </section>
 
           <section className="grid gap-2">
-            <h3 className="m-0 leading-[1.16]">Recent Bets</h3>
+            <h3 className="section-title">Recent Bets</h3>
             <div className="grid gap-2 overflow-hidden">
               {leagueDetail.recentBets.slice(0, maxRecentBetsRows).map((bet, index, rows) => (
                 <div
@@ -227,13 +229,13 @@ export function LeagueSidebar({
                 >
                   <div>
                     <strong className="block">{shortMarket(bet.marketQuestion)}</strong>
-                    <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">
+                    <small className={`${monoClass} text-[var(--muted)]`}>
                       {bet.displayName} {bet.side === "sell" ? "sold" : "bought"} {bet.outcome} at {formatPercent(bet.price)}
                     </small>
                   </div>
-                  <div className="grid gap-0.5 text-right font-['IBM_Plex_Mono'] text-[0.78rem]">
+                  <div className={`${monoClass} grid gap-0.5 text-right`}>
                     <span>{bet.side === "sell" ? `+${formatCurrency(bet.stake)}` : formatCurrency(bet.stake)}</span>
-                    <small className="font-['IBM_Plex_Mono'] text-[var(--muted)]">{formatDateTime(bet.createdAt)}</small>
+                    <small className={`${monoClass} text-[var(--muted)]`}>{formatDateTime(bet.createdAt)}</small>
                   </div>
                 </div>
               ))}
@@ -246,8 +248,8 @@ export function LeagueSidebar({
           </section>
         </>
       ) : (
-        <div className="rounded-[0.92rem] border border-dashed border-[var(--line)] p-6 text-center text-[var(--muted)]">
-          <h2 className="m-0 leading-[1.16]">No league selected</h2>
+        <div className="section-box p-6 text-center text-[var(--muted)]">
+          <h2 className="title text-[var(--ink)]">No League Selected</h2>
           <p className="m-0">Create or join a league to start placing fantasy positions.</p>
         </div>
       )}
