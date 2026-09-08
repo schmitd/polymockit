@@ -1,0 +1,39 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color: oklch(91% 0.018 232);
+  background: oklch(14% 0.018 232);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+}
+
+main {
+  width: min(24rem, calc(100% - 3rem));
+  border: 1px solid oklch(34% 0.024 232);
+  border-radius: 12px;
+  padding: 1.5rem;
+  background: oklch(19% 0.02 232);
+}
+
+p {
+  margin: 0;
+  color: oklch(84% 0.16 78);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0.5rem 0;
+  font-size: 1.25rem;
+}
+
+span {
+  color: oklch(68% 0.024 232);
+}

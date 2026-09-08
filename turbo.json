@@ -7,6 +7,8 @@
     },
     "build": {
       "dependsOn": ["^build"],
+      "env": ["VITE_CONVEX_URL", "CONVEX_URL", "VITE_AUTH0_DOMAIN", "VITE_AUTH0_CLIENT_ID"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.env.local", "$TURBO_ROOT$/.env"],
       "outputs": ["dist/**", "build/**"]
     },
     "typecheck": {

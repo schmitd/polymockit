@@ -16,6 +16,8 @@
     "typecheck": "turbo run typecheck && bun run typecheck:convex",
     "typecheck:convex": "tsc -p convex/tsconfig.json --noEmit",
     "lint": "turbo run lint",
+    "test": "bun test convex",
+    "test:e2e": "bun run --cwd apps/web test:e2e",
     "convex:dev": "bunx convex dev",
     "convex:deploy": "bunx convex deploy"
   },

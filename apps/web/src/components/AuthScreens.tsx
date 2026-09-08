@@ -9,8 +9,8 @@ export function RuntimeConfigErrorPanel({ runtimeConfigError }: RuntimeConfigErr
         <p className="eyebrow">Polymockit Setup</p>
         <h1 className="title">Frontend env is not configured.</h1>
         <p className="m-0">
-          Set <code>VITE_CONVEX_URL</code> in <code>/Users/david/projects/polymockit/.env.local</code> or{" "}
-          <code>/Users/david/projects/polymockit/apps/web/.env</code>, then restart <code>bun run dev</code>.
+          Add the missing Convex and Auth0 values to <code>.env.local</code> or <code>apps/web/.env</code>, then restart{" "}
+          <code>bun run dev</code>.
         </p>
         <div className="banner banner-danger">{runtimeConfigError}</div>
       </section>

@@ -8,10 +8,12 @@
  * @module
  */
 
+import type * as authMigration from "../authMigration.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as leagues from "../leagues.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_identity_linking from "../lib/identity_linking.js";
 import type * as lib_league from "../lib/league.js";
 import type * as lib_positions from "../lib/positions.js";
 import type * as polymarket from "../polymarket.js";
@@ -24,10 +26,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  authMigration: typeof authMigration;
   health: typeof health;
   http: typeof http;
   leagues: typeof leagues;
   "lib/auth": typeof lib_auth;
+  "lib/identity_linking": typeof lib_identity_linking;
   "lib/league": typeof lib_league;
   "lib/positions": typeof lib_positions;
   polymarket: typeof polymarket;

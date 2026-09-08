@@ -69,7 +69,6 @@ export function DashboardHeader({
                 <small className={`${monoClass} text-[var(--muted)]`}>@{user.username}</small>
               </div>
             </div>
-
             <button type="button" className={buttonSecondaryClass} onClick={onSignOut} disabled={isBusy}>
               {isSigningOut ? "Signing out..." : "Sign out"}
             </button>

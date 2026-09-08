@@ -7,6 +7,7 @@ export default defineSchema({
     name: v.optional(v.string()),
     image: v.optional(v.string()),
     email: v.optional(v.string()),
+    normalizedEmail: v.optional(v.string()),
     emailVerificationTime: v.optional(v.number()),
     phone: v.optional(v.string()),
     phoneVerificationTime: v.optional(v.number()),
@@ -20,7 +21,32 @@ export default defineSchema({
     .index("by_subject", ["subject"])
     .index("by_username", ["username"])
     .index("email", ["email"])
+    .index("by_normalized_email", ["normalizedEmail"])
     .index("phone", ["phone"]),
+
+  authIdentities: defineTable({
+    tokenIdentifier: v.string(),
+    issuer: v.string(),
+    subject: v.string(),
+    userId: v.id("users"),
+    email: v.optional(v.string()),
+    emailVerified: v.boolean(),
+    createdAt: v.number(),
+    lastSeenAt: v.number(),
+  })
+    .index("by_token_identifier", ["tokenIdentifier"])
+    .index("by_user", ["userId"])
+    .index("by_user_issuer", ["userId", "issuer"]),
+
+  authLinkAudits: defineTable({
+    userId: v.id("users"),
+    tokenIdentifier: v.string(),
+    issuer: v.string(),
+    action: v.union(v.literal("created"), v.literal("linked_verified_email")),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_token_identifier", ["tokenIdentifier"]),
 
   leagues: defineTable({
     name: v.string(),

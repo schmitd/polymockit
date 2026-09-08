@@ -9,6 +9,7 @@ import type {
   PolymarketTag,
 } from "@polymockit/effect-services";
 import { FantasyLeagueClient, PolymarketClient } from "@polymockit/effect-services";
+import { useAuth0 } from "@auth0/auth0-react";
 import { useConvexAuth } from "convex/react";
 import { Effect } from "effect";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -20,7 +21,6 @@ import { MarketFeedPanel } from "./components/MarketFeedPanel";
 import { buttonPrimaryClass } from "./components/ui";
 import { getRuntimeConfigError, runAppEffect } from "./effect/runtime";
 import { buildLeagueAnalytics, formatCurrency, formatPercent, marketOutcomeKey } from "./lib/analytics";
-import { signIn, signOut } from "./shoo";
 
 const runtimeConfigError = getRuntimeConfigError();
 
@@ -52,12 +52,12 @@ function SessionOverlay({
       <section className="panel pointer-events-auto mt-16 flex w-full max-w-[32rem] flex-col gap-3 p-6">
         <p className="eyebrow">Polymockit</p>
         <h2 className="title">
-          {isAuthLoading ? "Checking your session." : "Sign in to open the trading desk."}
+          {isAuthLoading ? "Opening your desk." : "Sign in to open the trading desk."}
         </h2>
         <p className="m-0 text-[var(--muted)]">
           {isAuthLoading
-            ? "The app shell is already loaded. Live league and market data will attach once auth resolves."
-            : "Browse the layout immediately, then authenticate when you are ready to load leagues and live market data."}
+            ? "Your league data will appear here as soon as the secure session is ready."
+            : "Your leagues, positions, and bankroll stay private until you sign in."}
         </p>
         {!isAuthLoading ? (
           <button
@@ -66,7 +66,7 @@ function SessionOverlay({
             onClick={onSignIn}
             disabled={isBusy}
           >
-            {isSigningIn ? "Signing in..." : "Sign in with Shoo"}
+            {isSigningIn ? "Opening sign in..." : "Sign in"}
           </button>
         ) : null}
         {error ? (
@@ -88,6 +88,7 @@ function extractErrorMessage(error: unknown): string {
 }
 
 export default function App() {
+  const { error: auth0Error, loginWithPopup, logout } = useAuth0();
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() =>
     window.location.pathname.startsWith("/leagues") ? "leagues" : "desk",
@@ -162,6 +163,12 @@ export default function App() {
     setError(null);
     setNotice(null);
   }, []);
+
+  useEffect(() => {
+    if (auth0Error) {
+      setError(extractErrorMessage(auth0Error));
+    }
+  }, [auth0Error]);
 
   const navigateTo = useCallback((next: AppRoute) => {
     const nextPath = next === "leagues" ? "/leagues" : "/";
@@ -552,28 +559,48 @@ export default function App() {
     clearBanner();
     setBusy("signin");
     try {
-      await signIn();
+      await loginWithPopup();
     } catch (signInError) {
       setError(extractErrorMessage(signInError));
+    } finally {
       setBusy(null);
     }
+  };
+
+  const clearPrivateSession = () => {
+    setSession(null);
+    setLeagues([]);
+    setLeagueDetail(null);
+    setStandings([]);
+    setPositions([]);
+    setSelectedLeagueId(null);
+    setIsRefreshingLeague(false);
   };
 
   const handleSignOut = async () => {
     clearBanner();
     setBusy("signout");
 
+    const logoutPopup = window.open("about:blank", "polymockit-logout", "popup,width=520,height=680");
+    if (!logoutPopup) {
+      setError("Allow popups for Polymockit to finish signing out.");
+      setBusy(null);
+      return;
+    }
+
+    logoutPopup.opener = null;
+    clearPrivateSession();
+
     try {
-      await signOut();
-      setSession(null);
-      setLeagues([]);
-      setLeagueDetail(null);
-      setStandings([]);
-      setPositions([]);
-      setSelectedLeagueId(null);
-      setIsRefreshingLeague(false);
+      await logout({
+        logoutParams: { returnTo: `${window.location.origin}/auth/logout-complete.html` },
+        openUrl: (url) => {
+          logoutPopup.location.replace(url);
+        },
+      });
       setNotice("Signed out.");
     } catch (signOutError) {
+      logoutPopup.close();
       setError(extractErrorMessage(signOutError));
     } finally {
       setBusy(null);

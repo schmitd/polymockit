@@ -4,6 +4,10 @@ node_modules
 # outputs
 dist
 coverage
+**/output/playwright
+playwright-report
+test-results
+.playwright-cli
 
 # env
 .env

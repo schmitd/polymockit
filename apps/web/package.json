@@ -7,18 +7,20 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx"
   },
   "dependencies": {
+    "@auth0/auth0-react": "^2.22.0",
     "@polymockit/effect-services": "workspace:*",
-    "@shoojs/react": "^0.2.2",
     "effect": "^3.19.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.26.0",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.2.0",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",

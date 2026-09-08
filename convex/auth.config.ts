@@ -1,19 +1,17 @@
-const siteUrl = (process.env.SITE_URL ?? "").trim().replace(/\/+$/, "");
+import type { AuthConfig } from "convex/server";
 
-if (!siteUrl) {
-  throw new Error(
-    "Missing SITE_URL. Set SITE_URL to your app origin (for example https://polymockit.davidschmitt.com).",
-  );
+const domain = (process.env.AUTH0_DOMAIN ?? "").trim();
+const applicationID = (process.env.AUTH0_CLIENT_ID ?? "").trim();
+
+if (!domain || !applicationID) {
+  throw new Error("Missing Auth0 configuration. Set AUTH0_DOMAIN and AUTH0_CLIENT_ID on this Convex deployment.");
 }
 
 export default {
   providers: [
     {
-      type: "customJwt",
-      issuer: "https://shoo.dev",
-      jwks: "https://shoo.dev/.well-known/jwks.json",
-      algorithm: "ES256",
-      applicationID: `origin:${siteUrl}`,
+      domain,
+      applicationID,
     },
   ],
-};
+} satisfies AuthConfig;
