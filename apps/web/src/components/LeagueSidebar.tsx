@@ -76,14 +76,57 @@ export function LeagueSidebar({
   maxRecentBetsRows,
 }: LeagueSidebarProps) {
   return (
-    <aside className={panelClass} aria-label="League desk">
-      <section className={sectionBoxClass}>
+    <aside className={`${panelClass} league-panel`} aria-label="League desk">
+      {selectedLeague && leagueDetail ? (
+          <section className="trade-section trade-ticket grid gap-2">
+            <form className="grid gap-2" onSubmit={onPlaceBet}>
+              <h3 className="section-title">Buy Position</h3>
+              <p className="m-0 text-sm">Available play money <strong className="mono">{formatCurrency(leagueDetail.viewer.cash)}</strong></p>
+              <p className="m-0 text-[var(--muted)]">{selectedMarket?.question ?? "Choose a market to get started."}</p>
+              <div className="grid items-center gap-2 xl:grid-cols-[auto_minmax(12rem,1fr)_auto_minmax(7rem,9rem)]">
+                <label className="text-[0.88rem] font-semibold text-[var(--muted)]" htmlFor="position-outcome">Outcome</label>
+                <select
+                  id="position-outcome"
+                  className={inputClass}
+                  value={selectedOutcome ?? ""}
+                  onChange={(event) => onSelectedOutcomeChange(event.target.value)}
+                >
+                  {(selectedMarket?.outcomes ?? []).map((outcome) => (
+                    <option value={outcome.name} key={`${selectedMarket?.marketId}-${outcome.name}`}>
+                      {outcome.name} ({formatPercent(outcome.price)})
+                    </option>
+                  ))}
+                </select>
+                <label className="text-[0.88rem] font-semibold text-[var(--muted)]" htmlFor="position-stake">Stake</label>
+                <input
+                  id="position-stake"
+                  required
+                  className={inputClass}
+                  type="number"
+                  inputMode="decimal"
+                  min={1}
+                  max={leagueDetail.viewer.cash}
+                  step={1}
+                  value={stakeInput}
+                  onChange={(event) => onStakeInputChange(event.target.value)}
+                />
+              </div>
+
+              <button type="submit" className={`${buttonPrimaryClass} w-full`} disabled={busy === "placeBet" || !selectedMarket || !selectedOutcome || !Number.isFinite(Number(stakeInput)) || Number(stakeInput) < 1 || Number(stakeInput) > leagueDetail.viewer.cash}>
+                {busy === "placeBet" ? "Submitting..." : "Buy Position"}
+              </button>
+            </form>
+            <p className="m-0 text-[0.78rem] text-[var(--muted)]">Returns are added to cash only when you cash out.</p>
+          </section>
+
+      ) : null}
+      <section className={`${sectionBoxClass} trade-section market-history`}>
         <div className="flex items-center justify-between gap-2">
           <h3 className="section-title">Market History</h3>
           {selectedOutcome ? <span className={statusPillClass}>{selectedOutcome}</span> : null}
         </div>
         {selectedMarket ? <p className="m-0 text-[var(--muted)]">{shortMarket(selectedMarket.question)}</p> : null}
-        <div className="h-[6.35rem]">
+        <div className="market-history-chart h-[6.35rem]">
           <PriceHistoryChart points={marketHistory} />
         </div>
         <div className={`${monoClass} grid grid-cols-3 gap-1.5 text-[var(--muted)]`}>
@@ -103,7 +146,7 @@ export function LeagueSidebar({
             <span className={statusPillClass}>{isRefreshingLeague ? "Syncing" : "Live"}</span>
           </div>
 
-          <section className="grid gap-2">
+          <section className="league-section grid gap-2">
             <h3 className="section-title">Leaderboard</h3>
             <div className="grid gap-2 overflow-hidden">
               {standings.slice(0, maxLeaderboardRows).map((entry, index, rows) => (
@@ -131,7 +174,7 @@ export function LeagueSidebar({
               ) : null}
             </div>
           </section>
-          <form className="mb-1 grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto]" onSubmit={onOpenSlug}>
+          <form className="trade-section mb-1 grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto]" onSubmit={onOpenSlug}>
             <input
               className={inputClass}
               value={slugInput}
@@ -143,45 +186,8 @@ export function LeagueSidebar({
               {isOpeningSlug ? "..." : "Open"}
             </button>
           </form>
-          <section className="grid gap-2">
-            <form className="grid gap-2" onSubmit={onPlaceBet}>
-              <h3 className="section-title">Buy Position</h3>
-              <p className="m-0 text-[var(--muted)]">{selectedMarket?.question ?? "Choose a market on the left."}</p>
-              <div className="grid items-center gap-2 xl:grid-cols-[auto_minmax(12rem,1fr)_auto_minmax(7rem,9rem)]">
-                <label className="text-[0.88rem] font-semibold text-[var(--muted)]" htmlFor="position-outcome">Outcome</label>
-                <select
-                  id="position-outcome"
-                  className={inputClass}
-                  value={selectedOutcome ?? ""}
-                  onChange={(event) => onSelectedOutcomeChange(event.target.value)}
-                >
-                  {(selectedMarket?.outcomes ?? []).map((outcome) => (
-                    <option value={outcome.name} key={`${selectedMarket?.marketId}-${outcome.name}`}>
-                      {outcome.name} ({formatPercent(outcome.price)})
-                    </option>
-                  ))}
-                </select>
-                <label className="text-[0.88rem] font-semibold text-[var(--muted)]" htmlFor="position-stake">Stake</label>
-                <input
-                  id="position-stake"
-                  required
-                  className={inputClass}
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={stakeInput}
-                  onChange={(event) => onStakeInputChange(event.target.value)}
-                />
-              </div>
 
-              <button type="submit" className={`${buttonPrimaryClass} w-full sm:w-fit`} disabled={busy === "placeBet"}>
-                {busy === "placeBet" ? "Submitting..." : "Buy Position"}
-              </button>
-            </form>
-            <p className="m-0 text-[0.78rem] text-[var(--muted)]">Returns are added to cash only when you cash out.</p>
-          </section>
-
-          <section className="grid gap-2">
+          <section className="league-section grid gap-2">
             <h3 className="section-title">Open Positions</h3>
             <div className="grid gap-2 overflow-hidden">
               {myPositions.length === 0 ? <p className="m-0 text-[var(--muted)]">No positions yet.</p> : null}
@@ -219,7 +225,7 @@ export function LeagueSidebar({
             </div>
           </section>
 
-          <section className="grid gap-2">
+          <section className="league-section grid gap-2">
             <h3 className="section-title">Recent Bets</h3>
             <div className="grid gap-2 overflow-hidden">
               {leagueDetail.recentBets.slice(0, maxRecentBetsRows).map((bet, index, rows) => (

@@ -94,6 +94,7 @@ export default function App() {
     window.location.pathname.startsWith("/leagues") ? "leagues" : "desk",
   );
   const [booting, setBooting] = useState(!runtimeConfigError);
+  const [mobileView, setMobileView] = useState<"markets" | "trade" | "league">("markets");
   const [session, setSession] = useState<{ user: AppUser } | null>(null);
   const [createLeagueForm, setCreateLeagueForm] = useState(defaultCreateLeague);
   const [joinCode, setJoinCode] = useState("");
@@ -123,6 +124,7 @@ export default function App() {
   const [isRefreshingLeague, setIsRefreshingLeague] = useState(true);
   const [isRefreshingMarkets, setIsRefreshingMarkets] = useState(false);
   const knownMarketIdsRef = useRef<Set<string>>(new Set());
+  const sessionGenerationRef = useRef(0);
 
   const selectedLeague = useMemo(
     () => leagues.find((league) => league.leagueId === selectedLeagueId) ?? null,
@@ -244,6 +246,7 @@ export default function App() {
   }, []);
 
   const hydrateLeagueAnalytics = useCallback(async (detail: LeagueDetail) => {
+    const generation = sessionGenerationRef.current;
     const targetPairs = Array.from(
       new Map(
         detail.positions.map((position) => [marketOutcomeKey(position.marketId, position.outcome), position]),
@@ -276,6 +279,7 @@ export default function App() {
       }
     }
 
+    if (generation !== sessionGenerationRef.current) return;
     const next = buildLeagueAnalytics(detail, priceMap);
     setStandings(next.standings);
     setPositions(next.positions);
@@ -342,12 +346,14 @@ export default function App() {
       }
 
       if (!isAuthenticated) {
+        sessionGenerationRef.current += 1;
         setSession(null);
         setBooting(false);
         return;
       }
 
       setBooting(true);
+      const generation = sessionGenerationRef.current;
 
       try {
         const user = await runAppEffect(
@@ -357,7 +363,7 @@ export default function App() {
           }),
         );
 
-        if (cancelled) {
+        if (cancelled || generation !== sessionGenerationRef.current) {
           return;
         }
 
@@ -568,6 +574,7 @@ export default function App() {
   };
 
   const clearPrivateSession = () => {
+    sessionGenerationRef.current += 1;
     setSession(null);
     setLeagues([]);
     setLeagueDetail(null);
@@ -670,6 +677,10 @@ export default function App() {
   const handleSelectLeague = useCallback(
     (leagueId: string) => {
       clearBanner();
+      sessionGenerationRef.current += 1;
+      setLeagueDetail(null);
+      setStandings([]);
+      setPositions([]);
       setSelectedLeagueId(leagueId);
     },
     [clearBanner],
@@ -864,7 +875,7 @@ export default function App() {
       <div className="flex-1">
         {currentRoute === "leagues" ? (
           <div className="relative">
-            <div className={shellMuted}>
+            <div className={shellMuted} inert={showSessionOverlay}>
               <LeagueSetupView
                 createLeagueForm={createLeagueForm}
                 onCreateLeagueNameChange={(name) =>
@@ -901,8 +912,19 @@ export default function App() {
             ) : null}
           </div>
         ) : (
-          <main className="relative">
-            <div className={`grid grid-cols-1 gap-3 p-3 sm:p-6 xl:grid-cols-[1.45fr_1fr] ${shellMuted}`}>
+          <main className="relative" data-mobile-view={mobileView}>
+            {session ? (
+              <div className="league-context">
+                <label htmlFor="active-league">Playing in</label>
+                <select id="active-league" className="control" value={selectedLeagueId ?? ""}
+                  onChange={(event) => handleSelectLeague(event.target.value)}>
+                  {!leagues.length ? <option value="">No leagues yet</option> : null}
+                  {leagues.map((league) => <option key={league.leagueId} value={league.leagueId}>{league.name}</option>)}
+                </select>
+                <button type="button" className="btn btn-secondary" onClick={() => navigateTo("leagues")}>Manage leagues</button>
+              </div>
+            ) : null}
+            <div className={`desk-layout grid grid-cols-1 gap-3 p-3 sm:p-6 xl:grid-cols-[1.45fr_1fr] ${shellMuted}`} inert={showSessionOverlay}>
               <MarketFeedPanel
                 feedMode={feedMode}
                 onFeedModeChange={handleFeedModeChange}
@@ -910,7 +932,11 @@ export default function App() {
                 markets={markets}
                 maxMarketRows={MAX_MARKET_ROWS}
                 selectedMarketId={selectedMarketId}
-                onSelectMarket={(marketId) => setSelectedMarketId(marketId)}
+                onSelectMarket={(marketId) => {
+                  setSelectedMarketId(marketId);
+                  setMobileView("trade");
+                  if (window.matchMedia("(max-width: 1279px)").matches) window.scrollTo({ top: 0 });
+                }}
                 tagSearch={tagSearch}
                 onTagSearchChange={setTagSearch}
                 selectedTagSlug={selectedTagSlug}
@@ -954,6 +980,16 @@ export default function App() {
           </main>
         )}
       </div>
+      {session ? (
+        <nav className="mobile-navigation" aria-label="Mobile desk">
+          {([ ["markets", "Markets"], ["trade", "Trade"], ["league", "My league"] ] as const).map(([view, label]) => (
+            <button key={view} type="button" aria-current={currentRoute === "desk" && mobileView === view ? "page" : undefined}
+              onClick={() => { setMobileView(view); navigateTo("desk"); window.scrollTo({ top: 0 }); }}>
+              {label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
     </div>
   );
 }

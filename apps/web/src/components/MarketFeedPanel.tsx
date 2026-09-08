@@ -44,11 +44,11 @@ export function MarketFeedPanel({
   visibleTags,
 }: MarketFeedPanelProps) {
   return (
-    <section className={panelClass} aria-labelledby="market-feed-title">
+    <section className={`${panelClass} market-feed`} aria-labelledby="market-feed-title">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 id="market-feed-title" className="title">Polymarket Feed</h2>
-          <p className="m-0 text-[var(--muted)]">Filter live markets, then select one to trade in your league.</p>
+          <h2 id="market-feed-title" className="title">Markets</h2>
+          <p className="m-0 text-[var(--muted)]">Real predictions. Play-money positions.</p>
         </div>
         <span className={statusPillClass}>{isRefreshingMarkets ? "Refreshing" : `${Math.min(markets.length, maxMarketRows)} shown`}</span>
       </div>
@@ -88,7 +88,7 @@ export function MarketFeedPanel({
       </div>
 
       <div className="min-h-10 py-1">
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="market-tags flex items-center gap-1.5">
           {isLoadingTags ? <span className="shrink-0 text-[var(--muted)]">Loading tags...</span> : null}
           {!isLoadingTags && visibleTags.length === 0 ? (
             <span className="shrink-0 text-[var(--muted)]">No active tags match this filter.</span>
@@ -119,16 +119,16 @@ export function MarketFeedPanel({
             onClick={() => onSelectMarket(market.marketId)}
           >
             <h3 className="section-title text-[0.95rem]">{shortMarket(market.question)}</h3>
-            <div className={`${monoClass} grid gap-0.5 text-[var(--muted)]`}>
-              {market.outcomes.map((outcome) => (
-                <span key={`${market.marketId}-${outcome.name}`}>
-                  {outcome.name}: {formatPercent(outcome.price)}
+            <div className="market-outcomes">
+              {market.outcomes.slice(0, 3).map((outcome) => (
+                <span className="market-quote" key={`${market.marketId}-${outcome.name}`}>
+                  <span>{outcome.name}</span><strong>{formatPercent(outcome.price)}</strong>
                 </span>
               ))}
             </div>
             <div className={`${monoClass} grid gap-0.5 text-[var(--muted)] sm:grid-cols-2`}>
               <span>Vol {formatCurrency(market.volume)}</span>
-              <span>Liquidity {formatCurrency(market.liquidity)}</span>
+              <span className="market-action">View market →</span>
             </div>
           </button>
         ))}

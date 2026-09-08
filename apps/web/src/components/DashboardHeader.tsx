@@ -28,14 +28,14 @@ export function DashboardHeader({
   const isBusy = isAuthLoading || isSigningIn || isSigningOut;
 
   return (
-    <header className="panel mx-3 mt-3 flex flex-wrap items-center justify-between gap-3 p-4 sm:mx-6 sm:mt-5">
+    <header className="app-header">
       <div>
         <p className="eyebrow">Polymockit</p>
-        <h1 className="title">Fantasy Prediction Desk</h1>
+        <h1 className="title">Prediction leagues</h1>
       </div>
 
-      <div className="flex w-full flex-wrap items-center justify-end gap-3 xl:w-auto xl:justify-start">
-        <nav className="flex gap-2" aria-label="Primary">
+      <div className="header-actions">
+        <nav className="desktop-navigation flex gap-2" aria-label="Primary">
           <button
             type="button"
             className={currentRoute === "desk" ? buttonPrimaryClass : buttonSecondaryClass}
@@ -50,13 +50,13 @@ export function DashboardHeader({
             onClick={() => onNavigate("leagues")}
             disabled={isAuthLoading}
           >
-            League Setup
+            Leagues
           </button>
         </nav>
 
         {user ? (
           <>
-            <div className="flex min-w-0 items-center gap-2.5 rounded-full border border-[var(--line)] bg-[var(--surface-raised)] px-3 py-1.5">
+            <div className="account-summary flex min-w-0 items-center gap-2.5">
               <span
                 className="grid h-7 w-7 place-items-center rounded-full font-semibold text-[var(--canvas)]"
                 style={{ backgroundColor: user.accentColor }}
