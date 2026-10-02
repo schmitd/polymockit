@@ -13,5 +13,13 @@ export default {
       domain,
       applicationID,
     },
+    // Temporary cutover compatibility, removed after the frontend is live.
+    ...(process.env.AUTH_MIGRATION_ALLOW_SHOO === "true" ? [{
+      type: "customJwt" as const,
+      issuer: "https://shoo.dev",
+      jwks: "https://shoo.dev/.well-known/jwks.json",
+      algorithm: "ES256" as const,
+      applicationID: `origin:${(process.env.SITE_URL ?? "").replace(/\/+$/, "")}`,
+    }] : []),
   ],
 } satisfies AuthConfig;

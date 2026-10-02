@@ -56,6 +56,15 @@ export async function requireAuthUser(ctx: any) {
     throw new ConvexError("Please sign in to continue.");
   }
 
+  // Preserve existing users while the old frontend is being replaced.
+  // Never create or email-link accounts through the retired provider.
+  if (identity.issuer === "https://shoo.dev" && process.env.AUTH_MIGRATION_ALLOW_SHOO === "true") {
+    const legacyUser = await ctx.db.query("users")
+      .withIndex("by_subject", (q: any) => q.eq("subject", identity.subject)).unique();
+    if (!legacyUser) throw new ConvexError("Sign-in is being upgraded. Please refresh in a moment.");
+    return legacyUser;
+  }
+
   const now = Date.now();
   const canWrite = typeof ctx.db.patch === "function" && typeof ctx.db.insert === "function";
   const tokenIdentifier = identity.tokenIdentifier;
